@@ -11,19 +11,11 @@ import { edgeTypes } from './components/edges';
 import UmlMarkers from './components/edges/UmlMarkers';
 import Toolbar from './components/Toolbar';
 import ContextMenu from './components/ContextMenu';
+import EdgeTypePopup from './components/EdgeTypePopup';
 import { useCanvasStore } from './store/useCanvasStore';
 import type { RelationshipType } from './types/schema';
 
 const nodeTypes = { classNode: ClassNode };
-
-const RELATIONSHIP_OPTIONS: RelationshipType[] = [
-  'inheritance',
-  'implementation',
-  'composition',
-  'aggregation',
-  'dependency',
-  'association',
-];
 
 function FlowCanvas() {
   const file = useCanvasStore((s) => s.file);
@@ -40,23 +32,38 @@ function FlowCanvas() {
     targetId: string;
   } | null>(null);
 
+  const [edgePopup, setEdgePopup] = useState<{
+    x: number;
+    y: number;
+    source: string;
+    target: string;
+  } | null>(null);
+
   const canvas = file.canvases[currentCanvasId];
   if (!canvas) return null;
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      // Show the edge type popup at the center of the screen
+      setEdgePopup({
+        x: window.innerWidth / 2 - 75,
+        y: window.innerHeight / 2 - 100,
+        source: connection.source,
+        target: connection.target,
+      });
+    },
+    []
+  );
 
-      const type = prompt(
-        `Relationship type:\n${RELATIONSHIP_OPTIONS.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\nEnter number (1-6):`
-      );
-
-      const index = parseInt(type || '', 10) - 1;
-      if (index >= 0 && index < RELATIONSHIP_OPTIONS.length) {
-        addEdge(connection.source, connection.target, RELATIONSHIP_OPTIONS[index]);
+  const handleEdgeTypeSelect = useCallback(
+    (type: RelationshipType) => {
+      if (edgePopup) {
+        addEdge(edgePopup.source, edgePopup.target, type);
+        setEdgePopup(null);
       }
     },
-    [addEdge]
+    [edgePopup, addEdge]
   );
 
   const handleNodeDragStop = useCallback(
@@ -120,6 +127,14 @@ function FlowCanvas() {
           type={contextMenu.type}
           targetId={contextMenu.targetId}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+      {edgePopup && (
+        <EdgeTypePopup
+          x={edgePopup.x}
+          y={edgePopup.y}
+          onSelect={handleEdgeTypeSelect}
+          onClose={() => setEdgePopup(null)}
         />
       )}
     </>
