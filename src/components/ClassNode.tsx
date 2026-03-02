@@ -1,0 +1,351 @@
+import { memo, useState, useCallback, useRef, useEffect } from 'react';
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import type { ClassNodeData, ClassProperty, ClassMethod, Visibility } from '../types/schema';
+import { useCanvasStore } from '../store/useCanvasStore';
+import './ClassNode.css';
+
+type ClassNodeType = Node<ClassNodeData, 'classNode'>;
+
+const VISIBILITY_SYMBOLS: Record<Visibility, string> = {
+  public: '+',
+  private: '-',
+  protected: '#',
+};
+
+// ---------------------------------------------------------------------------
+// InlineEdit
+// ---------------------------------------------------------------------------
+function InlineEdit({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (newValue: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const commit = useCallback(() => {
+    setEditing(false);
+    if (draft.trim() !== '' && draft !== value) {
+      onCommit(draft.trim());
+    } else {
+      setDraft(value);
+    }
+  }, [draft, value, onCommit]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        className="class-node-inline-input nodrag"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setDraft(value);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onDoubleClick={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+    >
+      {value}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CommentEditor
+// ---------------------------------------------------------------------------
+function CommentEditor({
+  comment,
+  onChange,
+}: {
+  comment: string | undefined;
+  onChange: (value: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <span
+        className={`class-node-comment-icon${comment ? ' has-comment' : ''}`}
+        title={comment ?? 'Add comment'}
+        onClick={() => setOpen((o) => !o)}
+      >
+        &#x1f4ac;
+      </span>
+      {open && (
+        <textarea
+          className="class-node-comment-area nodrag"
+          value={comment ?? ''}
+          placeholder="Add comment..."
+          onChange={(e) => onChange(e.target.value || undefined)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PropertyRow
+// ---------------------------------------------------------------------------
+function PropertyRow({
+  property,
+  nodeId,
+  index,
+}: {
+  property: ClassProperty;
+  nodeId: string;
+  index: number;
+}) {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+
+  const updateProperty = useCallback(
+    (patch: Partial<ClassProperty>) => {
+      const state = useCanvasStore.getState();
+      const canvas = state.file.canvases[state.currentCanvasId];
+      const node = canvas.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const props = [...node.data.properties];
+      props[index] = { ...props[index], ...patch };
+      updateNodeData(nodeId, { properties: props });
+    },
+    [nodeId, index, updateNodeData],
+  );
+
+  const removeProperty = useCallback(() => {
+    const state = useCanvasStore.getState();
+    const canvas = state.file.canvases[state.currentCanvasId];
+    const node = canvas.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const props = node.data.properties.filter((_, i) => i !== index);
+    updateNodeData(nodeId, { properties: props });
+  }, [nodeId, index, updateNodeData]);
+
+  const displayText = `${VISIBILITY_SYMBOLS[property.visibility]} ${property.name}: ${property.type}`;
+
+  return (
+    <div className="class-node-row">
+      <InlineEdit
+        value={displayText}
+        onCommit={(val) => {
+          const match = val.match(/^([+\-#])\s*(\w+):\s*(.+)$/);
+          if (match) {
+            const symToVis: Record<string, Visibility> = { '+': 'public', '-': 'private', '#': 'protected' };
+            updateProperty({
+              visibility: symToVis[match[1]] ?? property.visibility,
+              name: match[2],
+              type: match[3].trim(),
+            });
+          }
+        }}
+      />
+      <span
+        className={`class-node-row-comment${property.comment ? ' has-comment' : ''}`}
+        title={property.comment ?? 'Add comment'}
+        onClick={() => {
+          const newComment = property.comment ? undefined : '';
+          updateProperty({ comment: newComment === undefined ? undefined : 'comment' });
+        }}
+      >
+        &#x1f4ac;
+      </span>
+      <span className="class-node-row-remove" onClick={removeProperty}>
+        &#x2715;
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MethodRow
+// ---------------------------------------------------------------------------
+function MethodRow({
+  method,
+  nodeId,
+  index,
+}: {
+  method: ClassMethod;
+  nodeId: string;
+  index: number;
+}) {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+
+  const updateMethod = useCallback(
+    (patch: Partial<ClassMethod>) => {
+      const state = useCanvasStore.getState();
+      const canvas = state.file.canvases[state.currentCanvasId];
+      const node = canvas.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const methods = [...node.data.methods];
+      methods[index] = { ...methods[index], ...patch };
+      updateNodeData(nodeId, { methods });
+    },
+    [nodeId, index, updateNodeData],
+  );
+
+  const removeMethod = useCallback(() => {
+    const state = useCanvasStore.getState();
+    const canvas = state.file.canvases[state.currentCanvasId];
+    const node = canvas.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const methods = node.data.methods.filter((_, i) => i !== index);
+    updateNodeData(nodeId, { methods });
+  }, [nodeId, index, updateNodeData]);
+
+  const params = method.parameters.map((p) => `${p.name}: ${p.type}`).join(', ');
+  const displayText = `${VISIBILITY_SYMBOLS[method.visibility]} ${method.name}(${params}): ${method.returnType}`;
+
+  return (
+    <div className="class-node-row">
+      <InlineEdit
+        value={displayText}
+        onCommit={(val) => {
+          const match = val.match(/^([+\-#])\s*(\w+)\(([^)]*)\):\s*(.+)$/);
+          if (match) {
+            const symToVis: Record<string, Visibility> = { '+': 'public', '-': 'private', '#': 'protected' };
+            const paramStr = match[3].trim();
+            const parameters = paramStr
+              ? paramStr.split(',').map((seg) => {
+                  const parts = seg.trim().split(':');
+                  return { name: parts[0].trim(), type: (parts[1] ?? '').trim() };
+                })
+              : [];
+            updateMethod({
+              visibility: symToVis[match[1]] ?? method.visibility,
+              name: match[2],
+              parameters,
+              returnType: match[4].trim(),
+            });
+          }
+        }}
+      />
+      <span
+        className={`class-node-row-comment${method.comment ? ' has-comment' : ''}`}
+        title={method.comment ?? 'Add comment'}
+        onClick={() => {
+          const newComment = method.comment ? undefined : 'comment';
+          updateMethod({ comment: newComment });
+        }}
+      >
+        &#x1f4ac;
+      </span>
+      <span className="class-node-row-remove" onClick={removeMethod}>
+        &#x2715;
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ClassNodeComponent
+// ---------------------------------------------------------------------------
+function ClassNodeComponent({ id, data, selected }: NodeProps<ClassNodeType>) {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+
+  const headerStyle = data.color
+    ? { borderBottom: `2px solid ${data.color}`, background: `${data.color}11` }
+    : undefined;
+
+  const borderStyle = data.color ? { borderColor: data.color } : undefined;
+
+  const addProperty = useCallback(() => {
+    const state = useCanvasStore.getState();
+    const canvas = state.file.canvases[state.currentCanvasId];
+    const node = canvas.nodes.find((n) => n.id === id);
+    if (!node) return;
+    const newProp: ClassProperty = { name: 'field', type: 'string', visibility: 'private' };
+    updateNodeData(id, { properties: [...node.data.properties, newProp] });
+  }, [id, updateNodeData]);
+
+  const addMethod = useCallback(() => {
+    const state = useCanvasStore.getState();
+    const canvas = state.file.canvases[state.currentCanvasId];
+    const node = canvas.nodes.find((n) => n.id === id);
+    if (!node) return;
+    const newMethod: ClassMethod = {
+      name: 'method',
+      parameters: [],
+      returnType: 'void',
+      visibility: 'public',
+    };
+    updateNodeData(id, { methods: [...node.data.methods, newMethod] });
+  }, [id, updateNodeData]);
+
+  return (
+    <div
+      className={`class-node${selected ? ' selected' : ''}`}
+      style={borderStyle}
+    >
+      {/* Handles on all four sides */}
+      <Handle type="target" position={Position.Top} id="top" />
+      <Handle type="source" position={Position.Bottom} id="bottom" />
+      <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Right} id="right" />
+
+      {/* Header */}
+      <div className="class-node-header" style={headerStyle}>
+        {data.stereotype && (
+          <div className="class-node-stereotype">
+            &laquo;{data.stereotype}&raquo;
+          </div>
+        )}
+        <div className="class-node-name">
+          <InlineEdit
+            value={data.name}
+            onCommit={(val) => updateNodeData(id, { name: val })}
+          />
+        </div>
+        <CommentEditor
+          comment={data.comment}
+          onChange={(val) => updateNodeData(id, { comment: val })}
+        />
+      </div>
+
+      {/* Properties section */}
+      <div className="class-node-section">
+        {data.properties.map((prop, i) => (
+          <PropertyRow key={`${prop.name}-${i}`} property={prop} nodeId={id} index={i} />
+        ))}
+        <div className="class-node-add-btn nodrag" onClick={addProperty}>
+          + property
+        </div>
+      </div>
+
+      {/* Methods section */}
+      <div className="class-node-section">
+        {data.methods.map((method, i) => (
+          <MethodRow key={`${method.name}-${i}`} method={method} nodeId={id} index={i} />
+        ))}
+        <div className="class-node-add-btn nodrag" onClick={addMethod}>
+          + method
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default memo(ClassNodeComponent);
