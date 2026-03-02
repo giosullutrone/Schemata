@@ -17,6 +17,14 @@ function generateEdgeId(): string {
   return `edge-${nextEdgeId++}`;
 }
 
+function pushUndo(get: () => CanvasStore, set: (partial: Partial<CanvasStore>) => void) {
+  const { file, _undoStack } = get();
+  set({
+    _undoStack: [..._undoStack, JSON.parse(JSON.stringify(file))],
+    _redoStack: [],
+  });
+}
+
 function createDefaultFile(): CodeCanvasFile {
   return {
     version: '1.0',
@@ -34,6 +42,12 @@ function createDefaultFile(): CodeCanvasFile {
 interface CanvasStore {
   file: CodeCanvasFile;
   currentCanvasId: string;
+  _undoStack: CodeCanvasFile[];
+  _redoStack: CodeCanvasFile[];
+
+  // Undo/Redo
+  undo: () => void;
+  redo: () => void;
 
   // Reset (for tests)
   reset: () => void;
@@ -63,11 +77,35 @@ interface CanvasStore {
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   file: createDefaultFile(),
   currentCanvasId: 'main',
+  _undoStack: [],
+  _redoStack: [],
+
+  undo: () => {
+    const { _undoStack, file } = get();
+    if (_undoStack.length === 0) return;
+    const previous = _undoStack[_undoStack.length - 1];
+    set({
+      _undoStack: _undoStack.slice(0, -1),
+      _redoStack: [...get()._redoStack, file],
+      file: previous,
+    });
+  },
+
+  redo: () => {
+    const { _redoStack, file } = get();
+    if (_redoStack.length === 0) return;
+    const next = _redoStack[_redoStack.length - 1];
+    set({
+      _redoStack: _redoStack.slice(0, -1),
+      _undoStack: [...get()._undoStack, file],
+      file: next,
+    });
+  },
 
   reset: () => {
     nextNodeId = 1;
     nextEdgeId = 1;
-    set({ file: createDefaultFile(), currentCanvasId: 'main' });
+    set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [] });
   },
 
   loadFile: (file) => {
@@ -80,6 +118,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   addCanvas: (id, name) => {
+    pushUndo(get, set);
     const { file } = get();
     set({
       file: {
@@ -93,6 +132,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   removeCanvas: (id) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const { [id]: _, ...rest } = file.canvases;
     const newCurrentId = currentCanvasId === id ? Object.keys(rest)[0] : currentCanvasId;
@@ -103,6 +143,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   renameCanvas: (id, name) => {
+    pushUndo(get, set);
     const { file } = get();
     set({
       file: {
@@ -116,6 +157,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   addClassNode: (x, y) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     const newNode = {
@@ -143,6 +185,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   removeNode: (nodeId) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     set({
@@ -161,6 +204,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   updateNodeData: (nodeId, data) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     set({
@@ -180,6 +224,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   updateNodePosition: (nodeId, x, y) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     set({
@@ -199,6 +244,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   addEdge: (source, target, type) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     const newEdge = {
@@ -223,6 +269,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   removeEdge: (edgeId) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     set({
@@ -240,6 +287,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   updateEdgeData: (edgeId, data) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     set({
@@ -259,6 +307,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   updateEdgeType: (edgeId, type) => {
+    pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
     set({
