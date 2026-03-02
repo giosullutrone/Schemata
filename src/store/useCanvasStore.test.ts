@@ -112,3 +112,67 @@ describe('useCanvasStore', () => {
     expect(node.position).toEqual({ x: 50, y: 75 });
   });
 });
+
+describe('Canvas management', () => {
+  beforeEach(() => {
+    useCanvasStore.getState().reset();
+  });
+
+  it('should add a new canvas', () => {
+    useCanvasStore.getState().addCanvas('auth', 'Authentication');
+    const state = useCanvasStore.getState();
+    expect(state.file.canvases.auth).toBeDefined();
+    expect(state.file.canvases.auth.name).toBe('Authentication');
+    expect(state.file.canvases.auth.nodes).toEqual([]);
+  });
+
+  it('should switch current canvas', () => {
+    useCanvasStore.getState().addCanvas('auth', 'Authentication');
+    useCanvasStore.getState().setCurrentCanvas('auth');
+    expect(useCanvasStore.getState().currentCanvasId).toBe('auth');
+  });
+
+  it('should remove a canvas and switch to another', () => {
+    useCanvasStore.getState().addCanvas('auth', 'Authentication');
+    useCanvasStore.getState().setCurrentCanvas('auth');
+    useCanvasStore.getState().removeCanvas('auth');
+
+    const state = useCanvasStore.getState();
+    expect(state.file.canvases.auth).toBeUndefined();
+    expect(state.currentCanvasId).toBe('main');
+  });
+
+  it('should rename a canvas', () => {
+    useCanvasStore.getState().renameCanvas('main', 'Core Architecture');
+    expect(useCanvasStore.getState().file.canvases.main.name).toBe('Core Architecture');
+  });
+
+  it('should scope node operations to current canvas', () => {
+    useCanvasStore.getState().addCanvas('auth', 'Authentication');
+    useCanvasStore.getState().addClassNode(0, 0); // adds to 'main'
+
+    useCanvasStore.getState().setCurrentCanvas('auth');
+    useCanvasStore.getState().addClassNode(100, 100); // adds to 'auth'
+
+    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(1);
+    expect(useCanvasStore.getState().file.canvases.auth.nodes).toHaveLength(1);
+  });
+
+  it('should load a file', () => {
+    const file = {
+      version: '1.0',
+      name: 'Loaded Project',
+      canvases: {
+        api: {
+          name: 'API Layer',
+          nodes: [],
+          edges: [],
+        },
+      },
+    };
+    useCanvasStore.getState().loadFile(file);
+    const state = useCanvasStore.getState();
+    expect(state.file.name).toBe('Loaded Project');
+    expect(state.currentCanvasId).toBe('api');
+  });
+});
