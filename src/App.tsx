@@ -12,6 +12,8 @@ import UmlMarkers from './components/edges/UmlMarkers';
 import Toolbar from './components/Toolbar';
 import ContextMenu from './components/ContextMenu';
 import EdgeTypePopup from './components/EdgeTypePopup';
+import AlignmentGuides from './components/AlignmentGuides';
+import { calculateGuides, type GuideLine, type NodeRect } from './utils/alignment';
 import { useCanvasStore } from './store/useCanvasStore';
 import type { RelationshipType } from './types/schema';
 
@@ -38,6 +40,8 @@ function FlowCanvas() {
     source: string;
     target: string;
   } | null>(null);
+
+  const [guides, setGuides] = useState<GuideLine[]>([]);
 
   const canvas = file.canvases[currentCanvasId];
   if (!canvas) return null;
@@ -66,8 +70,32 @@ function FlowCanvas() {
     [edgePopup, addEdge]
   );
 
+  const handleNodeDrag = useCallback(
+    (_: React.MouseEvent, node: { id: string; position: { x: number; y: number }; measured?: { width?: number; height?: number } }) => {
+      const nodeRects: NodeRect[] = canvas.nodes
+        .filter((n) => n.id !== node.id)
+        .map((n) => ({
+          id: n.id,
+          x: n.position.x,
+          y: n.position.y,
+          width: 200,
+          height: 150,
+        }));
+      const draggedRect: NodeRect = {
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+        width: node.measured?.width || 200,
+        height: node.measured?.height || 150,
+      };
+      setGuides(calculateGuides(draggedRect, nodeRects));
+    },
+    [canvas.nodes]
+  );
+
   const handleNodeDragStop = useCallback(
     (_: React.MouseEvent, node: { id: string; position: { x: number; y: number } }) => {
+      setGuides([]);
       updateNodePosition(node.id, node.position.x, node.position.y);
     },
     [updateNodePosition]
@@ -111,6 +139,7 @@ function FlowCanvas() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onConnect={handleConnect}
+        onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
         onNodesDelete={handleNodesDelete}
         onEdgesDelete={handleEdgesDelete}
@@ -129,6 +158,7 @@ function FlowCanvas() {
           onClose={() => setContextMenu(null)}
         />
       )}
+      <AlignmentGuides guides={guides} />
       {edgePopup && (
         <EdgeTypePopup
           x={edgePopup.x}
