@@ -2,6 +2,7 @@ import { useCallback, useState, useRef, type KeyboardEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { saveToFileSystem, loadFromFileSystem, writeToHandle } from '../utils/fileIO';
+import CanvasSelector from './CanvasSelector';
 import './Toolbar.css';
 
 export default function Toolbar() {
@@ -97,6 +98,10 @@ export default function Toolbar() {
       <button className="toolbar-btn" onClick={handleLoad}>
         Load
       </button>
+
+      <div className="toolbar-separator" />
+
+      <CanvasSelector />
     </div>
   );
 }
