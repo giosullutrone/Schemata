@@ -1,14 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import type {
-  Visibility,
-  Stereotype,
-  RelationshipType,
-  ClassProperty,
-  MethodParameter,
-  ClassMethod,
-  ClassNodeData,
-  ClassEdgeData,
-  CanvasData,
   CodeCanvasFile,
 } from './schema';
 

@@ -31,6 +31,7 @@ export interface ClassMethod {
 }
 
 export interface ClassNodeData {
+  [key: string]: unknown;
   name: string;
   stereotype?: Stereotype;
   comment?: string;
@@ -47,6 +48,7 @@ export interface ClassNodeSchema {
 }
 
 export interface ClassEdgeData {
+  [key: string]: unknown;
   label?: string;
   comment?: string;
   color?: string;

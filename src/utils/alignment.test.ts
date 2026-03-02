@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateGuides, type NodeRect, type GuideLine } from './alignment';
+import { calculateGuides, type NodeRect } from './alignment';
 
 describe('calculateGuides', () => {
   const dragged: NodeRect = { id: 'a', x: 100, y: 100, width: 200, height: 150 };
