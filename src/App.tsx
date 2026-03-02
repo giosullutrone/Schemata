@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -10,6 +10,7 @@ import ClassNode from './components/ClassNode';
 import { edgeTypes } from './components/edges';
 import UmlMarkers from './components/edges/UmlMarkers';
 import Toolbar from './components/Toolbar';
+import ContextMenu from './components/ContextMenu';
 import { useCanvasStore } from './store/useCanvasStore';
 import type { RelationshipType } from './types/schema';
 
@@ -31,6 +32,13 @@ function FlowCanvas() {
   const updateNodePosition = useCanvasStore((s) => s.updateNodePosition);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    type: 'node' | 'edge';
+    targetId: string;
+  } | null>(null);
 
   const canvas = file.canvases[currentCanvasId];
   if (!canvas) return null;
@@ -72,19 +80,49 @@ function FlowCanvas() {
     [removeEdge]
   );
 
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: { id: string }) => {
+      event.preventDefault();
+      setContextMenu({ x: event.clientX, y: event.clientY, type: 'node', targetId: node.id });
+    },
+    []
+  );
+
+  const handleEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: { id: string }) => {
+      event.preventDefault();
+      setContextMenu({ x: event.clientX, y: event.clientY, type: 'edge', targetId: edge.id });
+    },
+    []
+  );
+
   return (
-    <ReactFlow
-      nodes={canvas.nodes}
-      edges={canvas.edges}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      onConnect={handleConnect}
-      onNodeDragStop={handleNodeDragStop}
-      onNodesDelete={handleNodesDelete}
-      onEdgesDelete={handleEdgesDelete}
-      fitView
-      deleteKeyCode="Backspace"
-    />
+    <>
+      <ReactFlow
+        nodes={canvas.nodes}
+        edges={canvas.edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onConnect={handleConnect}
+        onNodeDragStop={handleNodeDragStop}
+        onNodesDelete={handleNodesDelete}
+        onEdgesDelete={handleEdgesDelete}
+        onNodeContextMenu={handleNodeContextMenu}
+        onEdgeContextMenu={handleEdgeContextMenu}
+        onPaneClick={() => setContextMenu(null)}
+        fitView
+        deleteKeyCode="Backspace"
+      />
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          type={contextMenu.type}
+          targetId={contextMenu.targetId}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+    </>
   );
 }
 
