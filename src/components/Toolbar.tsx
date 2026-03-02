@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, type KeyboardEvent } from 'react';
+import { useCallback, useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { saveToFileSystem, loadFromFileSystem, writeToHandle } from '../utils/fileIO';
@@ -59,6 +59,18 @@ export default function Toolbar() {
     },
     [commitName]
   );
+
+  // Ctrl+S / Cmd+S keyboard shortcut
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [handleSave]);
 
   return (
     <div className="toolbar">

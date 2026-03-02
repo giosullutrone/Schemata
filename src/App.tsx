@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,6 +15,7 @@ import EdgeTypePopup from './components/EdgeTypePopup';
 import AlignmentGuides from './components/AlignmentGuides';
 import { calculateGuides, type GuideLine, type NodeRect } from './utils/alignment';
 import { useCanvasStore } from './store/useCanvasStore';
+import { deserializeFile, validateFile } from './utils/fileIO';
 import type { RelationshipType } from './types/schema';
 
 const nodeTypes = { classNode: ClassNode };
@@ -172,8 +173,59 @@ function FlowCanvas() {
 }
 
 function App() {
+  const undo = useCanvasStore((s) => s.undo);
+  const redo = useCanvasStore((s) => s.redo);
+  const loadFile = useCanvasStore((s) => s.loadFile);
+
+  // Undo/Redo keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [undo, redo]);
+
+  // Drag-and-drop file loading
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (!file || !file.name.endsWith('.json')) return;
+      try {
+        const text = await file.text();
+        const parsed = deserializeFile(text);
+        const errors = validateFile(parsed);
+        if (errors.length > 0) {
+          console.error('Invalid CodeCanvas file:', errors);
+          return;
+        }
+        loadFile(parsed);
+      } catch (err) {
+        console.error('Failed to load file:', err);
+      }
+    },
+    [loadFile]
+  );
+
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <ReactFlowProvider>
         <UmlMarkers />
         <Toolbar />
