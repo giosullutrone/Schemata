@@ -1,6 +1,8 @@
 import { ReactFlow, ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ClassNode from './components/ClassNode';
+import { edgeTypes } from './components/edges';
+import UmlMarkers from './components/edges/UmlMarkers';
 
 const nodeTypes = { classNode: ClassNode };
 
@@ -8,20 +10,34 @@ const testNodes = [
   {
     id: 'class-1',
     type: 'classNode',
-    position: { x: 100, y: 100 },
+    position: { x: 50, y: 50 },
     data: {
-      name: 'UserService',
-      stereotype: 'interface' as const,
-      comment: 'Handles users',
-      color: '#4A90D9',
+      name: 'Animal',
       properties: [
-        { name: 'db', type: 'Database', visibility: 'private' as const },
+        { name: 'name', type: 'string', visibility: 'protected' as const },
       ],
       methods: [
         {
-          name: 'getUser',
-          parameters: [{ name: 'id', type: 'string' }],
-          returnType: 'User',
+          name: 'speak',
+          parameters: [],
+          returnType: 'string',
+          visibility: 'public' as const,
+        },
+      ],
+    },
+  },
+  {
+    id: 'class-2',
+    type: 'classNode',
+    position: { x: 400, y: 50 },
+    data: {
+      name: 'Dog',
+      properties: [],
+      methods: [
+        {
+          name: 'speak',
+          parameters: [],
+          returnType: 'string',
           visibility: 'public' as const,
         },
       ],
@@ -29,11 +45,28 @@ const testNodes = [
   },
 ];
 
+const testEdges = [
+  {
+    id: 'edge-1',
+    source: 'class-2',
+    target: 'class-1',
+    type: 'inheritance',
+    data: { label: 'extends' },
+  },
+];
+
 function App() {
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <ReactFlowProvider>
-        <ReactFlow nodes={testNodes} nodeTypes={nodeTypes} fitView />
+        <UmlMarkers />
+        <ReactFlow
+          nodes={testNodes}
+          edges={testEdges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+        />
       </ReactFlowProvider>
     </div>
   );
