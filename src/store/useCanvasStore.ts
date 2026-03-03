@@ -264,15 +264,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         color: '#F39C12',
       },
     };
-    const newEdge: ClassEdgeSchema = {
-      id: generateEdgeId(),
-      source: nodeId,
-      target: targetNodeId,
-      sourceHandle,
-      targetHandle,
-      type: 'uml' as const,
-      data: { relationshipType: 'association' as const },
-    };
+
+    // Only create a connecting edge when there's a real parent
+    const newEdges = targetNodeId
+      ? [
+          ...canvas.edges,
+          {
+            id: generateEdgeId(),
+            source: nodeId,
+            target: targetNodeId,
+            sourceHandle,
+            targetHandle,
+            type: 'uml' as const,
+            data: { relationshipType: 'association' as const },
+          } satisfies ClassEdgeSchema,
+        ]
+      : canvas.edges;
+
     set({
       file: {
         ...file,
@@ -281,7 +289,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           [currentCanvasId]: {
             ...canvas,
             nodes: [...canvas.nodes, newNode],
-            edges: [...canvas.edges, newEdge],
+            edges: newEdges,
           },
         },
       },

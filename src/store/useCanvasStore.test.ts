@@ -144,7 +144,7 @@ describe('useCanvasStore', () => {
     expect(canvas.viewport).toEqual({ x: 100, y: 200, zoom: 1.5 });
   });
 
-  it('should add an annotation node', () => {
+  it('should add an annotation node with default color and connecting edge', () => {
     const { addClassNode, addAnnotation } = useCanvasStore.getState();
     addClassNode(0, 0);
     const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
@@ -155,6 +155,14 @@ describe('useCanvasStore', () => {
     expect(nodes[1].type).toBe('annotationNode');
     expect(nodes[1].data.parentId).toBe(nodeId);
     expect(nodes[1].data.comment).toBe('Comment');
+    expect(nodes[1].data.color).toBe('#F39C12');
+
+    // Should also create a connecting edge
+    const edges = useCanvasStore.getState().file.canvases.main.edges;
+    expect(edges).toHaveLength(1);
+    expect(edges[0].source).toBe(nodes[1].id);
+    expect(edges[0].target).toBe(nodeId);
+    expect(edges[0].data.relationshipType).toBe('association');
   });
 
   it('should cascade delete annotations when parent node is removed', () => {
@@ -184,12 +192,16 @@ describe('useCanvasStore', () => {
     expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(2); // only class nodes remain
   });
 
-  it('should add a standalone annotation (empty parentId)', () => {
+  it('should add a standalone annotation (empty parentId) without a dangling edge', () => {
     useCanvasStore.getState().addAnnotation('', 'node', 100, 200);
     const nodes = useCanvasStore.getState().file.canvases.main.nodes;
     expect(nodes).toHaveLength(1);
     expect(nodes[0].type).toBe('annotationNode');
     expect(nodes[0].data.parentId).toBe('');
+
+    // No edge should be created when there is no parent
+    const edges = useCanvasStore.getState().file.canvases.main.edges;
+    expect(edges).toHaveLength(0);
   });
 
   it('should not push undo when using setCanvasNodes', () => {
@@ -207,6 +219,54 @@ describe('useCanvasStore', () => {
     useCanvasStore.getState().pushUndoSnapshot();
     const stackAfter = useCanvasStore.getState()._undoStack.length;
     expect(stackAfter).toBe(stackBefore + 1);
+  });
+
+  it('should update annotation node color', () => {
+    const { addClassNode, addAnnotation } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
+    addAnnotation(nodeId, 'node', 200, 0);
+    const annotationId = useCanvasStore.getState().file.canvases.main.nodes[1].id;
+
+    useCanvasStore.getState().updateNodeData(annotationId, { color: '#E74C3C' });
+    const node = useCanvasStore.getState().file.canvases.main.nodes[1];
+    expect(node.data.color).toBe('#E74C3C');
+  });
+
+  it('should create a group node wrapping the given rects', () => {
+    useCanvasStore.getState().groupSelectedNodes([
+      { id: 'a', x: 100, y: 100, w: 200, h: 150 },
+      { id: 'b', x: 400, y: 200, w: 200, h: 150 },
+    ]);
+    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].type).toBe('groupNode');
+    expect(nodes[0].data.label).toBe('Group');
+    // Check bounding box: padding=20, labelHeight=24
+    expect(nodes[0].position.x).toBe(80);  // 100 - 20
+    expect(nodes[0].position.y).toBe(56);  // 100 - 20 - 24
+    const style = (nodes[0] as { style?: { width: number; height: number } }).style;
+    expect(style?.width).toBe(540);  // (600-100) + 40
+    expect(style?.height).toBe(314); // (350-100) + 40 + 24
+  });
+
+  it('should prepend group node so it renders behind other nodes', () => {
+    const { addClassNode, groupSelectedNodes } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    groupSelectedNodes([
+      { id: 'a', x: 0, y: 0, w: 200, h: 150 },
+      { id: 'b', x: 100, y: 0, w: 200, h: 150 },
+    ]);
+    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    expect(nodes).toHaveLength(3);
+    expect(nodes[0].type).toBe('groupNode');
+    expect(nodes[1].type).toBe('classNode');
+  });
+
+  it('should not create a group for empty rects', () => {
+    useCanvasStore.getState().groupSelectedNodes([]);
+    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
   });
 
   it('should preserve other edge data when updating relationship type', () => {

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type {
   CodeCanvasFile,
+  GroupNodeSchema,
+  AnnotationNodeSchema,
 } from './schema';
 
 describe('Schema types', () => {
@@ -56,6 +58,29 @@ describe('Schema types', () => {
       expect(node.data.properties[0].visibility).toBe('private');
       expect(node.data.methods[0].parameters).toHaveLength(1);
     }
+  });
+
+  it('should allow constructing a GroupNodeSchema', () => {
+    const node: GroupNodeSchema = {
+      id: 'group-1',
+      type: 'groupNode',
+      position: { x: 0, y: 0 },
+      data: { label: 'Core', color: '#4A90D9' },
+      style: { width: 400, height: 300 },
+    };
+    expect(node.type).toBe('groupNode');
+    expect(node.data.label).toBe('Core');
+    expect(node.style?.width).toBe(400);
+  });
+
+  it('should allow annotation node with color', () => {
+    const node: AnnotationNodeSchema = {
+      id: 'annotation-1',
+      type: 'annotationNode',
+      position: { x: 0, y: 0 },
+      data: { comment: 'Note', parentId: 'class-1', parentType: 'node', color: '#F39C12' },
+    };
+    expect(node.data.color).toBe('#F39C12');
   });
 
   it('should allow minimal node data without optional fields', () => {
