@@ -23,13 +23,14 @@ import ClassNode from './components/ClassNode';
 import AnnotationNode from './components/AnnotationNode';
 import GroupNode from './components/GroupNode';
 import { edgeTypes } from './components/edges';
-import Toolbar from './components/Toolbar';
+import Sidebar from './components/Sidebar';
+import SettingsPopover from './components/SettingsPopover';
 import ContextMenu from './components/ContextMenu';
 import AlignmentGuides from './components/AlignmentGuides';
 import { calculateGuides, type GuideLine, type NodeRect, type SnapResult } from './utils/alignment';
 import { EDGE_CONFIG, type UmlEdgeConfig } from './components/edges/edgeConfig';
 import { useCanvasStore } from './store/useCanvasStore';
-import { deserializeFile, validateFile } from './utils/fileIO';
+import { deserializeFile, validateFile, saveToFileSystem, writeToHandle } from './utils/fileIO';
 import type { CanvasNodeSchema, ClassEdgeSchema, RelationshipType } from './types/schema';
 
 const nodeTypes = { classNode: ClassNode, annotationNode: AnnotationNode, groupNode: GroupNode };
@@ -567,7 +568,7 @@ function App() {
     }
   }, [colorMode]);
 
-  // Undo/Redo keyboard shortcuts
+  // Keyboard shortcuts: Undo/Redo, Save, Toggle sidebar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -577,6 +578,24 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
         e.preventDefault();
         redo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const store = useCanvasStore.getState();
+        const currentFile = store.file;
+        const handle = store.fileHandle;
+        if (handle) {
+          writeToHandle(handle, currentFile);
+        } else {
+          saveToFileSystem(currentFile).then((h) => {
+            if (h) store.setFileHandle(h);
+          });
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        const store = useCanvasStore.getState();
+        store.setSidebarOpen(!store.sidebarOpen);
       }
     };
     document.addEventListener('keydown', handler);
@@ -613,14 +632,20 @@ function App() {
   return (
     <div
       className={resolvedDark ? 'dark' : ''}
-      style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}
+      style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'row' }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       <ReactFlowProvider>
-        <Toolbar colorMode={colorMode} onColorModeChange={handleColorModeChange} snapMode={snapMode} onSnapCycle={handleSnapCycle} />
-        <div style={{ flex: 1 }}>
+        <Sidebar />
+        <div style={{ flex: 1, position: 'relative' }}>
           <FlowCanvas colorMode={colorMode} snapMode={snapMode} />
+          <SettingsPopover
+            colorMode={colorMode}
+            onColorModeChange={handleColorModeChange}
+            snapMode={snapMode}
+            onSnapCycle={handleSnapCycle}
+          />
         </div>
       </ReactFlowProvider>
     </div>
