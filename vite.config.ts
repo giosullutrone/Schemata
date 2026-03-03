@@ -8,6 +8,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
-    exclude: ['node_modules', 'xyflow/**'],
+    exclude: ['node_modules', 'xyflow/**', 'Automation-workflow-examples/**'],
   },
 });

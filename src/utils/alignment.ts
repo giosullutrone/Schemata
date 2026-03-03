@@ -11,12 +11,22 @@ export interface GuideLine {
   pos: number;
 }
 
+export interface SnapResult {
+  guides: GuideLine[];
+  snapDeltaX: number | null;
+  snapDeltaY: number | null;
+}
+
 export function calculateGuides(
   dragged: NodeRect,
   others: NodeRect[],
   threshold: number = 5
-): GuideLine[] {
+): SnapResult {
   const guides: GuideLine[] = [];
+  let bestDeltaX: number | null = null;
+  let bestDistX = Infinity;
+  let bestDeltaY: number | null = null;
+  let bestDistY = Infinity;
 
   const draggedCenterX = dragged.x + dragged.width / 2;
   const draggedCenterY = dragged.y + dragged.height / 2;
@@ -40,9 +50,14 @@ export function calculateGuides(
     ];
 
     for (const { dragVal, otherVal } of hChecks) {
-      if (Math.abs(dragVal - otherVal) <= threshold) {
+      const dist = Math.abs(dragVal - otherVal);
+      if (dist <= threshold) {
         if (!guides.some((g) => g.orientation === 'horizontal' && g.pos === otherVal)) {
           guides.push({ orientation: 'horizontal', pos: otherVal });
+        }
+        if (dist < bestDistY) {
+          bestDistY = dist;
+          bestDeltaY = otherVal - dragVal;
         }
       }
     }
@@ -56,13 +71,18 @@ export function calculateGuides(
     ];
 
     for (const { dragVal, otherVal } of vChecks) {
-      if (Math.abs(dragVal - otherVal) <= threshold) {
+      const dist = Math.abs(dragVal - otherVal);
+      if (dist <= threshold) {
         if (!guides.some((g) => g.orientation === 'vertical' && g.pos === otherVal)) {
           guides.push({ orientation: 'vertical', pos: otherVal });
+        }
+        if (dist < bestDistX) {
+          bestDistX = dist;
+          bestDeltaX = otherVal - dragVal;
         }
       }
     }
   }
 
-  return guides;
+  return { guides, snapDeltaX: bestDeltaX, snapDeltaY: bestDeltaY };
 }

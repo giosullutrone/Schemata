@@ -19,18 +19,17 @@ describe('Schema types', () => {
               data: {
                 name: 'UserService',
                 stereotype: 'interface',
-                comment: 'A service',
                 color: '#4A90D9',
                 properties: [
-                  { name: 'db', type: 'Database', visibility: 'private', comment: 'DB conn' },
+                  { id: 'p1', name: 'db', type: 'Database', visibility: 'private' },
                 ],
                 methods: [
                   {
+                    id: 'm1',
                     name: 'getUser',
                     parameters: [{ name: 'id', type: 'string' }],
                     returnType: 'User',
                     visibility: 'public',
-                    comment: 'Fetches user',
                   },
                 ],
               },
@@ -42,7 +41,7 @@ describe('Schema types', () => {
               source: 'class-1',
               target: 'class-2',
               type: 'uml',
-              data: { relationshipType: 'dependency', label: 'uses', comment: 'Injected', color: '#E74C3C' },
+              data: { relationshipType: 'dependency', label: 'uses', color: '#E74C3C' },
             },
           ],
         },
@@ -52,8 +51,11 @@ describe('Schema types', () => {
     expect(file.version).toBe('1.0');
     expect(file.canvases.main.nodes).toHaveLength(1);
     expect(file.canvases.main.edges).toHaveLength(1);
-    expect(file.canvases.main.nodes[0].data.properties[0].visibility).toBe('private');
-    expect(file.canvases.main.nodes[0].data.methods[0].parameters).toHaveLength(1);
+    const node = file.canvases.main.nodes[0];
+    if (node.type === 'classNode') {
+      expect(node.data.properties[0].visibility).toBe('private');
+      expect(node.data.methods[0].parameters).toHaveLength(1);
+    }
   });
 
   it('should allow minimal node data without optional fields', () => {
@@ -81,7 +83,6 @@ describe('Schema types', () => {
     };
 
     expect(file.canvases.main.nodes[0].data.stereotype).toBeUndefined();
-    expect(file.canvases.main.nodes[0].data.comment).toBeUndefined();
     expect(file.canvases.main.nodes[0].data.color).toBeUndefined();
   });
 });

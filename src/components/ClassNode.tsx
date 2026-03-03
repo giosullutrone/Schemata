@@ -1,10 +1,18 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import type { ClassNodeData, ClassProperty, ClassMethod, Visibility } from '../types/schema';
-import { useCanvasStore } from '../store/useCanvasStore';
+import { Handle, Position, NodeResizer, type Node, type NodeProps } from '@xyflow/react';
+import type { ClassNodeData, ClassNodeSchema, ClassProperty, ClassMethod, Visibility } from '../types/schema';
+import { useCanvasStore, generatePropId, generateMethodId } from '../store/useCanvasStore';
 import './ClassNode.css';
 
 type ClassNodeType = Node<ClassNodeData, 'classNode'>;
+
+function findClassNode(nodeId: string): ClassNodeSchema | undefined {
+  const state = useCanvasStore.getState();
+  const canvas = state.file.canvases[state.currentCanvasId];
+  const node = canvas.nodes.find((n) => n.id === nodeId);
+  if (node?.type === 'classNode') return node;
+  return undefined;
+}
 
 const VISIBILITY_SYMBOLS: Record<Visibility, string> = {
   public: '+',
@@ -74,42 +82,6 @@ function InlineEdit({
 }
 
 // ---------------------------------------------------------------------------
-// CommentEditor
-// ---------------------------------------------------------------------------
-function CommentEditor({
-  comment,
-  onChange,
-}: {
-  comment: string | undefined;
-  onChange: (value: string | undefined) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <span
-        className={`class-node-comment-icon${comment ? ' has-comment' : ''}`}
-        title={comment ?? 'Add comment'}
-        onClick={() => setOpen((o) => !o)}
-      >
-        &#x1f4ac;
-      </span>
-      {open && (
-        <textarea
-          className="class-node-comment-area nodrag"
-          value={comment ?? ''}
-          placeholder="Add comment..."
-          onChange={(e) => onChange(e.target.value || undefined)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setOpen(false);
-          }}
-        />
-      )}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // PropertyRow
 // ---------------------------------------------------------------------------
 function PropertyRow({
@@ -125,9 +97,7 @@ function PropertyRow({
 
   const updateProperty = useCallback(
     (patch: Partial<ClassProperty>) => {
-      const state = useCanvasStore.getState();
-      const canvas = state.file.canvases[state.currentCanvasId];
-      const node = canvas.nodes.find((n) => n.id === nodeId);
+      const node = findClassNode(nodeId);
       if (!node) return;
       const props = [...node.data.properties];
       props[index] = { ...props[index], ...patch };
@@ -137,11 +107,9 @@ function PropertyRow({
   );
 
   const removeProperty = useCallback(() => {
-    const state = useCanvasStore.getState();
-    const canvas = state.file.canvases[state.currentCanvasId];
-    const node = canvas.nodes.find((n) => n.id === nodeId);
+    const node = findClassNode(nodeId);
     if (!node) return;
-    const props = node.data.properties.filter((_, i) => i !== index);
+    const props = node.data.properties.filter((_: ClassProperty, i: number) => i !== index);
     updateNodeData(nodeId, { properties: props });
   }, [nodeId, index, updateNodeData]);
 
@@ -149,6 +117,12 @@ function PropertyRow({
 
   return (
     <div className="class-node-row">
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={property.id}
+        className="class-node-sub-handle"
+      />
       <InlineEdit
         value={displayText}
         onCommit={(val) => {
@@ -163,16 +137,6 @@ function PropertyRow({
           }
         }}
       />
-      <span
-        className={`class-node-row-comment${property.comment ? ' has-comment' : ''}`}
-        title={property.comment ?? 'Add comment'}
-        onClick={() => {
-          const newComment = property.comment ? undefined : '';
-          updateProperty({ comment: newComment === undefined ? undefined : 'comment' });
-        }}
-      >
-        &#x1f4ac;
-      </span>
       <span className="class-node-row-remove" onClick={removeProperty}>
         &#x2715;
       </span>
@@ -196,9 +160,7 @@ function MethodRow({
 
   const updateMethod = useCallback(
     (patch: Partial<ClassMethod>) => {
-      const state = useCanvasStore.getState();
-      const canvas = state.file.canvases[state.currentCanvasId];
-      const node = canvas.nodes.find((n) => n.id === nodeId);
+      const node = findClassNode(nodeId);
       if (!node) return;
       const methods = [...node.data.methods];
       methods[index] = { ...methods[index], ...patch };
@@ -208,11 +170,9 @@ function MethodRow({
   );
 
   const removeMethod = useCallback(() => {
-    const state = useCanvasStore.getState();
-    const canvas = state.file.canvases[state.currentCanvasId];
-    const node = canvas.nodes.find((n) => n.id === nodeId);
+    const node = findClassNode(nodeId);
     if (!node) return;
-    const methods = node.data.methods.filter((_, i) => i !== index);
+    const methods = node.data.methods.filter((_: ClassMethod, i: number) => i !== index);
     updateNodeData(nodeId, { methods });
   }, [nodeId, index, updateNodeData]);
 
@@ -221,6 +181,12 @@ function MethodRow({
 
   return (
     <div className="class-node-row">
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={method.id}
+        className="class-node-sub-handle"
+      />
       <InlineEdit
         value={displayText}
         onCommit={(val) => {
@@ -243,16 +209,6 @@ function MethodRow({
           }
         }}
       />
-      <span
-        className={`class-node-row-comment${method.comment ? ' has-comment' : ''}`}
-        title={method.comment ?? 'Add comment'}
-        onClick={() => {
-          const newComment = method.comment ? undefined : 'comment';
-          updateMethod({ comment: newComment });
-        }}
-      >
-        &#x1f4ac;
-      </span>
       <span className="class-node-row-remove" onClick={removeMethod}>
         &#x2715;
       </span>
@@ -273,20 +229,17 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
   const borderStyle = data.color ? { borderColor: data.color } : undefined;
 
   const addProperty = useCallback(() => {
-    const state = useCanvasStore.getState();
-    const canvas = state.file.canvases[state.currentCanvasId];
-    const node = canvas.nodes.find((n) => n.id === id);
+    const node = findClassNode(id);
     if (!node) return;
-    const newProp: ClassProperty = { name: 'field', type: 'string', visibility: 'private' };
+    const newProp: ClassProperty = { id: generatePropId(), name: 'field', type: 'string', visibility: 'private' };
     updateNodeData(id, { properties: [...node.data.properties, newProp] });
   }, [id, updateNodeData]);
 
   const addMethod = useCallback(() => {
-    const state = useCanvasStore.getState();
-    const canvas = state.file.canvases[state.currentCanvasId];
-    const node = canvas.nodes.find((n) => n.id === id);
+    const node = findClassNode(id);
     if (!node) return;
     const newMethod: ClassMethod = {
+      id: generateMethodId(),
       name: 'method',
       parameters: [],
       returnType: 'void',
@@ -300,6 +253,11 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
       className={`class-node${selected ? ' selected' : ''}`}
       style={borderStyle}
     >
+      <NodeResizer
+        minWidth={150}
+        minHeight={80}
+        isVisible={!!selected}
+      />
       {/* Handles on all four sides */}
       <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} />
       <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} />
@@ -319,16 +277,12 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
             onCommit={(val) => updateNodeData(id, { name: val })}
           />
         </div>
-        <CommentEditor
-          comment={data.comment}
-          onChange={(val) => updateNodeData(id, { comment: val })}
-        />
       </div>
 
       {/* Properties section */}
       <div className="class-node-section">
         {data.properties.map((prop, i) => (
-          <PropertyRow key={`${prop.name}-${i}`} property={prop} nodeId={id} index={i} />
+          <PropertyRow key={prop.id} property={prop} nodeId={id} index={i} />
         ))}
         <div className="class-node-add-btn nodrag" onClick={addProperty}>
           + property
@@ -338,7 +292,7 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
       {/* Methods section */}
       <div className="class-node-section">
         {data.methods.map((method, i) => (
-          <MethodRow key={`${method.name}-${i}`} method={method} nodeId={id} index={i} />
+          <MethodRow key={method.id} method={method} nodeId={id} index={i} />
         ))}
         <div className="class-node-add-btn nodrag" onClick={addMethod}>
           + method

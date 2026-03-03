@@ -15,12 +15,14 @@ interface ContextMenuProps {
   type: 'node' | 'edge';
   targetId: string;
   onClose: () => void;
+  screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number };
 }
 
-export default function ContextMenu({ x, y, type, targetId, onClose }: ContextMenuProps) {
+export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlowPosition }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
+  const addAnnotation = useCanvasStore((s) => s.addAnnotation);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
   const updateEdgeType = useCanvasStore((s) => s.updateEdgeType);
@@ -69,6 +71,12 @@ export default function ContextMenu({ x, y, type, targetId, onClose }: ContextMe
     onClose();
   }, [targetId, updateNodeData, onClose]);
 
+  const handleAddComment = useCallback(() => {
+    const flowPos = screenToFlowPosition({ x: x + 220, y });
+    addAnnotation(targetId, type, flowPos.x, flowPos.y);
+    onClose();
+  }, [targetId, type, x, y, screenToFlowPosition, addAnnotation, onClose]);
+
   return (
     <div className="context-menu" ref={ref} style={{ left: x, top: y }}>
       <div className="context-menu-color-row">
@@ -103,6 +111,10 @@ export default function ContextMenu({ x, y, type, targetId, onClose }: ContextMe
         </>
       )}
 
+      <div className="context-menu-item" onClick={handleAddComment}>
+        Add comment
+      </div>
+      <div className="context-menu-separator" />
       <div className="context-menu-item danger" onClick={handleDelete}>
         Delete
       </div>

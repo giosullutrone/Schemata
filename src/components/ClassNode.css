@@ -3,8 +3,13 @@
   border: 2px solid var(--border-primary);
   border-radius: 4px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  min-width: 200px;
+  min-width: 150px;
+  width: 100%;
+  height: 100%;
   box-shadow: 0 1px 4px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .class-node.selected {
@@ -32,30 +37,6 @@
   color: var(--text-primary);
 }
 
-.class-node-comment-icon {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  opacity: 0.3;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-}
-
-.class-node-comment-icon:hover {
-  opacity: 1;
-  background: var(--bg-hover);
-}
-
-.class-node-comment-icon.has-comment {
-  opacity: 0.7;
-}
-
 .class-node-section {
   padding: 6px 12px;
   border-bottom: 1px solid var(--border-secondary);
@@ -64,6 +45,8 @@
 
 .class-node-section:last-child {
   border-bottom: none;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .class-node-row {
@@ -83,7 +66,7 @@
 
 .class-node-row-remove {
   position: absolute;
-  right: -4px;
+  left: -14px;
   opacity: 0;
   cursor: pointer;
   color: var(--danger);
@@ -98,21 +81,6 @@
 
 .class-node-row-remove:hover {
   background: var(--danger-bg);
-}
-
-.class-node-row-comment {
-  opacity: 0;
-  cursor: pointer;
-  font-size: 10px;
-  margin-left: 2px;
-}
-
-.class-node-row:hover .class-node-row-comment {
-  opacity: 0.4;
-}
-
-.class-node-row-comment.has-comment {
-  opacity: 0.7;
 }
 
 .class-node-add-btn {
@@ -139,17 +107,17 @@
   color: var(--text-primary);
 }
 
-.class-node-comment-area {
-  background: var(--bg-comment);
-  border: 1px solid var(--border-comment);
-  border-radius: 3px;
-  padding: 6px 8px;
-  font-size: 11px;
-  font-family: inherit;
-  resize: vertical;
-  width: 100%;
-  min-height: 40px;
-  outline: none;
-  margin-top: 4px;
-  color: var(--text-primary);
+.class-node-sub-handle {
+  width: 6px !important;
+  height: 6px !important;
+  min-width: 6px !important;
+  min-height: 6px !important;
+  background: var(--text-muted) !important;
+  border: 1px solid var(--border-secondary) !important;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.class-node-row:hover .class-node-sub-handle {
+  opacity: 1;
 }

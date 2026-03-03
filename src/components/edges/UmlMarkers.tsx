@@ -5,68 +5,68 @@ export default function UmlMarkers() {
         <marker
           id="uml-inheritance"
           viewBox="0 0 20 20"
-          markerWidth={16}
-          markerHeight={16}
+          markerWidth={10}
+          markerHeight={10}
           refX={20}
           refY={10}
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 20 10 L 0 20 Z" fill="white" stroke="currentColor" strokeWidth={1.5} />
+          <path d="M 0 0 L 20 10 L 0 20 Z" fill="currentColor" strokeLinejoin="round" />
         </marker>
         <marker
           id="uml-implementation"
           viewBox="0 0 20 20"
-          markerWidth={16}
-          markerHeight={16}
+          markerWidth={10}
+          markerHeight={10}
           refX={20}
           refY={10}
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 20 10 L 0 20 Z" fill="white" stroke="currentColor" strokeWidth={1.5} />
+          <path d="M 0 0 L 20 10 L 0 20 Z" fill="currentColor" strokeLinejoin="round" />
         </marker>
         <marker
           id="uml-composition"
           viewBox="0 0 20 20"
-          markerWidth={16}
-          markerHeight={16}
+          markerWidth={10}
+          markerHeight={10}
           refX={0}
           refY={10}
           orient="auto-start-reverse"
         >
-          <path d="M 10 0 L 20 10 L 10 20 L 0 10 Z" fill="currentColor" stroke="currentColor" strokeWidth={1} />
+          <path d="M 10 0 L 20 10 L 10 20 L 0 10 Z" fill="currentColor" strokeLinejoin="round" />
         </marker>
         <marker
           id="uml-aggregation"
           viewBox="0 0 20 20"
-          markerWidth={16}
-          markerHeight={16}
+          markerWidth={10}
+          markerHeight={10}
           refX={0}
           refY={10}
           orient="auto-start-reverse"
         >
-          <path d="M 10 0 L 20 10 L 10 20 L 0 10 Z" fill="white" stroke="currentColor" strokeWidth={1.5} />
+          <path d="M 10 0 L 20 10 L 10 20 L 0 10 Z" fill="currentColor" strokeLinejoin="round" />
         </marker>
         <marker
           id="uml-dependency"
           viewBox="0 0 20 20"
-          markerWidth={14}
-          markerHeight={14}
+          markerWidth={9}
+          markerHeight={9}
           refX={20}
           refY={10}
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 20 10 L 0 20" fill="none" stroke="currentColor" strokeWidth={1.5} />
+          <path d="M 0 0 L 20 10 L 0 20 Z" fill="currentColor" strokeLinejoin="round" />
         </marker>
         <marker
           id="uml-association"
           viewBox="0 0 20 20"
-          markerWidth={14}
-          markerHeight={14}
+          markerWidth={9}
+          markerHeight={9}
           refX={20}
           refY={10}
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 20 10 L 0 20" fill="none" stroke="currentColor" strokeWidth={1.5} />
+          <path d="M 0 0 L 20 10 L 0 20 Z" fill="currentColor" strokeLinejoin="round" />
         </marker>
       </defs>
     </svg>

@@ -11,10 +11,10 @@ export type RelationshipType =
   | 'association';
 
 export interface ClassProperty {
+  id: string;
   name: string;
   type: string;
   visibility: Visibility;
-  comment?: string;
 }
 
 export interface MethodParameter {
@@ -23,18 +23,17 @@ export interface MethodParameter {
 }
 
 export interface ClassMethod {
+  id: string;
   name: string;
   parameters: MethodParameter[];
   returnType: string;
   visibility: Visibility;
-  comment?: string;
 }
 
 export interface ClassNodeData {
   [key: string]: unknown;
   name: string;
   stereotype?: Stereotype;
-  comment?: string;
   color?: string;
   properties: ClassProperty[];
   methods: ClassMethod[];
@@ -47,25 +46,44 @@ export interface ClassNodeSchema {
   data: ClassNodeData;
 }
 
+export interface AnnotationNodeData {
+  [key: string]: unknown;
+  comment: string;
+  parentId: string;
+  parentType: 'node' | 'edge';
+}
+
+export interface AnnotationNodeSchema {
+  id: string;
+  type: 'annotationNode';
+  position: { x: number; y: number };
+  data: AnnotationNodeData;
+}
+
+export type CanvasNodeSchema = ClassNodeSchema | AnnotationNodeSchema;
+
 export interface ClassEdgeData {
   [key: string]: unknown;
   relationshipType: RelationshipType;
   label?: string;
-  comment?: string;
   color?: string;
+  labelWidth?: number;
+  labelHeight?: number;
 }
 
 export interface ClassEdgeSchema {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
   type: 'uml';
   data: ClassEdgeData;
 }
 
 export interface CanvasData {
   name: string;
-  nodes: ClassNodeSchema[];
+  nodes: CanvasNodeSchema[];
   edges: ClassEdgeSchema[];
   viewport?: { x: number; y: number; zoom: number };
 }

@@ -26,6 +26,12 @@
   border-color: var(--text-muted);
 }
 
+.toolbar-btn.active {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  font-weight: 600;
+}
+
 .toolbar-separator {
   width: 1px;
   height: 24px;

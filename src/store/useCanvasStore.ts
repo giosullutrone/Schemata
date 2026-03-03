@@ -1,15 +1,17 @@
 import { create } from 'zustand';
 import type {
   CodeCanvasFile,
-  ClassNodeData,
   ClassEdgeData,
   ClassEdgeSchema,
-  ClassNodeSchema,
+  CanvasNodeSchema,
   RelationshipType,
 } from '../types/schema';
 
 let nextNodeId = 1;
 let nextEdgeId = 1;
+let nextAnnotationId = 1;
+let nextPropId = 1;
+let nextMethodId = 1;
 
 function generateNodeId(): string {
   return `class-${nextNodeId++}`;
@@ -17,6 +19,18 @@ function generateNodeId(): string {
 
 function generateEdgeId(): string {
   return `edge-${nextEdgeId++}`;
+}
+
+function generateAnnotationId(): string {
+  return `annotation-${nextAnnotationId++}`;
+}
+
+export function generatePropId(): string {
+  return `p${nextPropId++}`;
+}
+
+export function generateMethodId(): string {
+  return `m${nextMethodId++}`;
 }
 
 function pushUndo(get: () => CanvasStore, set: (partial: Partial<CanvasStore>) => void) {
@@ -39,6 +53,24 @@ function createDefaultFile(): CodeCanvasFile {
       },
     },
   };
+}
+
+/** Migrate older files: ensure all properties/methods have stable IDs */
+function migrateFile(file: CodeCanvasFile): void {
+  for (const canvas of Object.values(file.canvases)) {
+    for (const node of canvas.nodes) {
+      if (node.type === 'classNode') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        node.data.properties.forEach((p: any) => {
+          if (!p.id) p.id = generatePropId();
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        node.data.methods.forEach((m: any) => {
+          if (!m.id) m.id = generateMethodId();
+        });
+      }
+    }
+  }
 }
 
 interface CanvasStore {
@@ -65,14 +97,15 @@ interface CanvasStore {
 
   // Node operations
   addClassNode: (x: number, y: number) => void;
+  addAnnotation: (parentId: string, parentType: 'node' | 'edge', x: number, y: number) => void;
   removeNode: (nodeId: string) => void;
-  updateNodeData: (nodeId: string, data: Partial<ClassNodeData>) => void;
+  updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
-  setCanvasNodes: (nodes: ClassNodeSchema[]) => void;
+  setCanvasNodes: (nodes: CanvasNodeSchema[]) => void;
   pushUndoSnapshot: () => void;
 
   // Edge operations
-  addEdge: (source: string, target: string, type: RelationshipType) => void;
+  addEdge: (source: string, target: string, type: RelationshipType, sourceHandle?: string, targetHandle?: string) => void;
   removeEdge: (edgeId: string) => void;
   updateEdgeData: (edgeId: string, data: Partial<ClassEdgeData>) => void;
   updateEdgeType: (edgeId: string, type: RelationshipType) => void;
@@ -111,10 +144,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   reset: () => {
     nextNodeId = 1;
     nextEdgeId = 1;
+    nextAnnotationId = 1;
+    nextPropId = 1;
+    nextMethodId = 1;
     set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [] });
   },
 
   loadFile: (file) => {
+    migrateFile(file);
     const canvasIds = Object.keys(file.canvases);
     set({ file, currentCanvasId: canvasIds[0] || 'main' });
   },
@@ -190,6 +227,34 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     });
   },
 
+  addAnnotation: (parentId, parentType, x, y) => {
+    pushUndo(get, set);
+    const { file, currentCanvasId } = get();
+    const canvas = file.canvases[currentCanvasId];
+    const newNode = {
+      id: generateAnnotationId(),
+      type: 'annotationNode' as const,
+      position: { x, y },
+      data: {
+        comment: 'Comment',
+        parentId,
+        parentType,
+      },
+    };
+    set({
+      file: {
+        ...file,
+        canvases: {
+          ...file.canvases,
+          [currentCanvasId]: {
+            ...canvas,
+            nodes: [...canvas.nodes, newNode],
+          },
+        },
+      },
+    });
+  },
+
   removeNode: (nodeId) => {
     pushUndo(get, set);
     const { file, currentCanvasId } = get();
@@ -201,7 +266,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           ...file.canvases,
           [currentCanvasId]: {
             ...canvas,
-            nodes: canvas.nodes.filter((n) => n.id !== nodeId),
+            nodes: canvas.nodes.filter((n) => {
+              if (n.id === nodeId) return false;
+              // Cascade delete: remove annotations linked to this node
+              if (n.type === 'annotationNode' && n.data.parentId === nodeId) return false;
+              return true;
+            }),
             edges: canvas.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
           },
         },
@@ -221,7 +291,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           [currentCanvasId]: {
             ...canvas,
             nodes: canvas.nodes.map((n) =>
-              n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+              n.id === nodeId ? { ...n, data: { ...n.data, ...data } } as CanvasNodeSchema : n
             ),
           },
         },
@@ -270,16 +340,18 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     pushUndo(get, set);
   },
 
-  addEdge: (source, target, type) => {
+  addEdge: (source, target, type, sourceHandle, targetHandle) => {
     pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
-    const newEdge = {
+    const newEdge: ClassEdgeSchema = {
       id: generateEdgeId(),
       source,
       target,
+      ...(sourceHandle ? { sourceHandle } : {}),
+      ...(targetHandle ? { targetHandle } : {}),
       type: 'uml' as const,
-      data: { relationshipType: type, label: type },
+      data: { relationshipType: type },
     };
     set({
       file: {
@@ -306,6 +378,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           ...file.canvases,
           [currentCanvasId]: {
             ...canvas,
+            nodes: canvas.nodes.filter((n) => {
+              // Cascade delete: remove annotations linked to this edge
+              if (n.type === 'annotationNode' && n.data.parentId === edgeId) return false;
+              return true;
+            }),
             edges: canvas.edges.filter((e) => e.id !== edgeId),
           },
         },

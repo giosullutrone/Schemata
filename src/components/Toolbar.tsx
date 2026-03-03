@@ -6,13 +6,16 @@ import CanvasSelector from './CanvasSelector';
 import './Toolbar.css';
 
 type ColorModeSetting = 'light' | 'dark' | 'system';
+type SnapMode = 'grid' | 'guides' | 'none';
 
 interface ToolbarProps {
   colorMode: ColorModeSetting;
   onColorModeChange: (mode: ColorModeSetting) => void;
+  snapMode: SnapMode;
+  onSnapCycle: () => void;
 }
 
-export default function Toolbar({ colorMode, onColorModeChange }: ToolbarProps) {
+export default function Toolbar({ colorMode, onColorModeChange, snapMode, onSnapCycle }: ToolbarProps) {
   const { screenToFlowPosition } = useReactFlow();
   const file = useCanvasStore((s) => s.file);
   const addClassNode = useCanvasStore((s) => s.addClassNode);
@@ -121,6 +124,16 @@ export default function Toolbar({ colorMode, onColorModeChange }: ToolbarProps) 
       <div className="toolbar-separator" />
 
       <CanvasSelector />
+
+      <div className="toolbar-separator" />
+
+      <button
+        className={`toolbar-btn${snapMode !== 'none' ? ' active' : ''}`}
+        onClick={onSnapCycle}
+        title={`Snap mode: ${snapMode}`}
+      >
+        Snap: {snapMode === 'grid' ? 'Grid' : snapMode === 'guides' ? 'Guides' : 'Off'}
+      </button>
 
       <div className="toolbar-separator" />
 
