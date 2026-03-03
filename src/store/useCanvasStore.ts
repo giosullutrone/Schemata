@@ -261,6 +261,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         comment: 'Comment',
         parentId,
         parentType,
+        color: '#F39C12',
       },
     };
     const newEdge: ClassEdgeSchema = {

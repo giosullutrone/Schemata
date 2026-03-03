@@ -51,6 +51,7 @@ export interface AnnotationNodeData {
   comment: string;
   parentId: string;
   parentType: 'node' | 'edge';
+  color?: string;
 }
 
 export interface AnnotationNodeSchema {

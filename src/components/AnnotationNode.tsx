@@ -26,12 +26,21 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
     }
   }, [draft, data.comment, id, updateNodeData]);
 
+  const color = data.color ?? '#F39C12';
+
   return (
-    <div className={`annotation-node${selected ? ' selected' : ''}`}>
+    <div
+      className={`annotation-node${selected ? ' selected' : ''}`}
+      style={{
+        borderColor: color,
+        backgroundColor: `${color}15`,
+      }}
+    >
       <NodeResizer
         minWidth={120}
         minHeight={40}
         isVisible={!!selected}
+        lineStyle={{ borderColor: color }}
       />
       {/* All handles are source type so dragging FROM annotation always makes it the source */}
       <Handle type="source" position={Position.Top} id="top" />

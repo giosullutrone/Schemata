@@ -1,6 +1,5 @@
 .annotation-node {
-  background: var(--bg-comment);
-  border: 1px dashed var(--border-comment);
+  border: 1px dashed;
   border-radius: 4px;
   padding: 8px 10px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -15,7 +14,7 @@
 }
 
 .annotation-node.selected {
-  border-color: var(--text-primary);
+  border-style: solid;
 }
 
 .annotation-node-text {
