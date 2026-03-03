@@ -230,6 +230,16 @@
   color: #2ECC71;
 }
 
+.sidebar-dirty-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
 .sidebar-drop-indicator {
   height: 2px;
   background: var(--guide-color);
@@ -240,6 +250,7 @@
 .sidebar-context-menu {
   position: fixed;
   background: var(--bg-primary);
+  color: var(--text-primary);
   border: 1px solid var(--border-primary);
   border-radius: 6px;
   box-shadow: 0 2px 12px var(--shadow-heavy);

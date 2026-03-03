@@ -37,6 +37,8 @@ export default function Sidebar() {
   const setFileHandle = useCanvasStore((s) => s.setFileHandle);
   const loadFile = useCanvasStore((s) => s.loadFile);
   const saveViewport = useCanvasStore((s) => s.saveViewport);
+  const lastSavedFile = useCanvasStore((s) => s.lastSavedFile);
+  const markSaved = useCanvasStore((s) => s.markSaved);
 
   const { getViewport, setCenter, setNodes } = useReactFlow();
 
@@ -115,16 +117,20 @@ export default function Sidebar() {
       const currentFile = useCanvasStore.getState().file;
       if (fileHandle) {
         await writeToHandle(fileHandle, currentFile);
+        markSaved();
       } else {
         const handle = await saveToFileSystem(currentFile);
-        if (handle) setFileHandle(handle);
+        if (handle) {
+          setFileHandle(handle);
+          markSaved();
+        }
       }
     } catch (err) {
       if ((err as DOMException).name !== 'AbortError') {
         console.error('Save failed:', err);
       }
     }
-  }, [fileHandle, setFileHandle]);
+  }, [fileHandle, setFileHandle, markSaved]);
 
   const handleLoad = useCallback(async () => {
     try {
@@ -207,11 +213,20 @@ export default function Sidebar() {
   );
 
   // --- DnD state ---
+  // State drives rendering (highlights, indicators); ref gives the drop handler
+  // synchronous access to the latest values regardless of React batching.
   const [dragType, setDragType] = useState<'canvas' | 'node' | null>(null);
   const [dragCanvasId, setDragCanvasId] = useState<string | null>(null);
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const [dropTargetCanvasId, setDropTargetCanvasId] = useState<string | null>(null);
   const [dropInsertIndex, setDropInsertIndex] = useState<number | null>(null);
+  const dndRef = useRef({
+    dragType: null as 'canvas' | 'node' | null,
+    dragCanvasId: null as string | null,
+    dragNodeId: null as string | null,
+    dropTargetCanvasId: null as string | null,
+    dropInsertIndex: null as number | null,
+  });
 
   const canvasIds = Object.keys(file.canvases);
 
@@ -220,6 +235,8 @@ export default function Sidebar() {
     (e: React.DragEvent, canvasId: string) => {
       setDragType('canvas');
       setDragCanvasId(canvasId);
+      dndRef.current.dragType = 'canvas';
+      dndRef.current.dragCanvasId = canvasId;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', canvasId);
     },
@@ -228,50 +245,72 @@ export default function Sidebar() {
 
   const handleCanvasDragOver = useCallback(
     (e: React.DragEvent, index: number) => {
-      if (dragType !== 'canvas') {
+      const dt = dndRef.current.dragType;
+      if (dt !== 'canvas') {
         // Node being dragged over a canvas row
-        if (dragType === 'node') {
+        if (dt === 'node') {
           e.preventDefault();
+          e.stopPropagation();
           e.dataTransfer.dropEffect = 'move';
-          setDropTargetCanvasId(canvasIds[index]);
+          const targetId = canvasIds[index];
+          setDropTargetCanvasId(targetId);
           setDropInsertIndex(null);
+          dndRef.current.dropTargetCanvasId = targetId;
+          dndRef.current.dropInsertIndex = null;
         }
         return;
       }
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const midY = rect.top + rect.height / 2;
-      setDropInsertIndex(e.clientY < midY ? index : index + 1);
+      const insertIdx = e.clientY < midY ? index : index + 1;
+      setDropInsertIndex(insertIdx);
       setDropTargetCanvasId(null);
+      dndRef.current.dropInsertIndex = insertIdx;
+      dndRef.current.dropTargetCanvasId = null;
     },
-    [dragType, canvasIds]
+    [canvasIds]
   );
 
   const handleCanvasDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      if (dragType === 'canvas' && dragCanvasId && dropInsertIndex !== null) {
-        const newOrder = canvasIds.filter((id) => id !== dragCanvasId);
-        const adjustedIndex = dropInsertIndex > canvasIds.indexOf(dragCanvasId)
-          ? dropInsertIndex - 1
-          : dropInsertIndex;
-        newOrder.splice(adjustedIndex, 0, dragCanvasId);
+      e.stopPropagation();
+      // Read from ref to avoid stale closure between dragover and drop
+      const d = dndRef.current;
+      if (d.dragType === 'canvas' && d.dragCanvasId && d.dropInsertIndex !== null) {
+        const newOrder = canvasIds.filter((id) => id !== d.dragCanvasId);
+        const adjustedIndex = d.dropInsertIndex > canvasIds.indexOf(d.dragCanvasId)
+          ? d.dropInsertIndex - 1
+          : d.dropInsertIndex;
+        newOrder.splice(adjustedIndex, 0, d.dragCanvasId);
         reorderCanvases(newOrder);
       }
-      if (dragType === 'node' && dragNodeId && dropTargetCanvasId) {
-        moveNodeToCanvas(dragNodeId, currentCanvasId, dropTargetCanvasId);
+      if (d.dragType === 'node' && d.dragNodeId && d.dropTargetCanvasId) {
+        // Place node at the center of the target canvas's saved viewport
+        const targetCanvas = file.canvases[d.dropTargetCanvasId];
+        const vp = targetCanvas?.viewport || { x: 0, y: 0, zoom: 1 };
+        const container = document.querySelector('.react-flow')?.getBoundingClientRect();
+        const w = container?.width ?? window.innerWidth - 240;
+        const h = container?.height ?? window.innerHeight;
+        const centerX = (-vp.x + w / 2) / vp.zoom;
+        const centerY = (-vp.y + h / 2) / vp.zoom;
+        moveNodeToCanvas(d.dragNodeId, currentCanvasId, d.dropTargetCanvasId, { x: centerX, y: centerY });
       }
+      dndRef.current = { dragType: null, dragCanvasId: null, dragNodeId: null, dropTargetCanvasId: null, dropInsertIndex: null };
       setDragType(null);
       setDragCanvasId(null);
       setDragNodeId(null);
       setDropTargetCanvasId(null);
       setDropInsertIndex(null);
     },
-    [dragType, dragCanvasId, dragNodeId, dropInsertIndex, dropTargetCanvasId, canvasIds, reorderCanvases, moveNodeToCanvas, currentCanvasId]
+    [canvasIds, reorderCanvases, moveNodeToCanvas, currentCanvasId, file.canvases]
   );
 
   const handleDragEnd = useCallback(() => {
+    dndRef.current = { dragType: null, dragCanvasId: null, dragNodeId: null, dropTargetCanvasId: null, dropInsertIndex: null };
     setDragType(null);
     setDragCanvasId(null);
     setDragNodeId(null);
@@ -285,6 +324,8 @@ export default function Sidebar() {
       e.stopPropagation();
       setDragType('node');
       setDragNodeId(nodeId);
+      dndRef.current.dragType = 'node';
+      dndRef.current.dragNodeId = nodeId;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', nodeId);
     },
@@ -372,6 +413,9 @@ export default function Sidebar() {
             const canvas = file.canvases[canvasId];
             const isActive = canvasId === currentCanvasId;
             const isDropTarget = dropTargetCanvasId === canvasId && dragType === 'node';
+            const isDirty = lastSavedFile
+              ? canvas !== lastSavedFile.canvases[canvasId]
+              : canvas.nodes.length > 0 || canvas.edges.length > 0;
 
             return (
               <div key={canvasId}>
@@ -403,17 +447,25 @@ export default function Sidebar() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <span className="sidebar-canvas-name">{canvas.name}</span>
+                    <span className="sidebar-canvas-name">
+                      {canvas.name}
+                      {isDirty && <span className="sidebar-dirty-dot" />}
+                    </span>
                   )}
                 </div>
 
                 {/* Node children -- only for active canvas */}
                 {isActive && currentCanvas && currentCanvas.nodes.map((node) => {
                   const badge = getNodeBadge(node.type);
+                  const nodeColor = node.data.color as string | undefined;
+                  const rowStyle = nodeColor
+                    ? { background: `${nodeColor}18` }
+                    : undefined;
                   return (
                     <div
                       key={node.id}
                       className="sidebar-node-row"
+                      style={rowStyle}
                       onClick={() => handleNodeClick(node.id)}
                       onContextMenu={(e) => handleNodeContextMenu(e, canvasId, node.id, node.type)}
                       draggable

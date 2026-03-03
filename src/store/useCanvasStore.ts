@@ -125,8 +125,12 @@ interface CanvasStore {
   setFileHandle: (handle: FileSystemFileHandle | null) => void;
 
   // Cross-canvas operations
-  moveNodeToCanvas: (nodeId: string, fromCanvasId: string, toCanvasId: string) => void;
+  moveNodeToCanvas: (nodeId: string, fromCanvasId: string, toCanvasId: string, targetPosition?: { x: number; y: number }) => void;
   reorderCanvases: (orderedIds: string[]) => void;
+
+  // Save tracking
+  lastSavedFile: CodeCanvasFile | null;
+  markSaved: () => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -139,6 +143,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     return stored !== null ? stored === 'true' : true;
   })(),
   fileHandle: null,
+  lastSavedFile: null,
 
   undo: () => {
     const { _undoStack, file } = get();
@@ -169,13 +174,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     nextGroupId = 1;
     nextPropId = 1;
     nextMethodId = 1;
-    set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [], sidebarOpen: true, fileHandle: null });
+    set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [], sidebarOpen: true, fileHandle: null, lastSavedFile: null });
   },
 
   loadFile: (file) => {
     migrateFile(file);
     const canvasIds = Object.keys(file.canvases);
-    set({ file, currentCanvasId: canvasIds[0] || 'main' });
+    set({ file, currentCanvasId: canvasIds[0] || 'main', lastSavedFile: file });
   },
 
   setCurrentCanvas: (canvasId) => {
@@ -568,7 +573,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ fileHandle: handle });
   },
 
-  moveNodeToCanvas: (nodeId, fromCanvasId, toCanvasId) => {
+  markSaved: () => {
+    set({ lastSavedFile: get().file });
+  },
+
+  moveNodeToCanvas: (nodeId, fromCanvasId, toCanvasId, targetPosition) => {
     if (fromCanvasId === toCanvasId) return;
     const { file } = get();
     const fromCanvas = file.canvases[fromCanvasId];
@@ -588,8 +597,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
     }
 
-    // Move only the target node (not annotations) to target canvas at origin
-    const movedNode = { ...node, position: { x: 0, y: 0 } };
+    const movedNode = { ...node, position: targetPosition ?? { x: 0, y: 0 } };
 
     set({
       file: {

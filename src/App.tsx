@@ -164,9 +164,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   // Restore viewport when switching canvases
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (canvas.viewport) {
-      setViewport(canvas.viewport);
-    }
+    setViewport(canvas.viewport ?? { x: 0, y: 0, zoom: 1 });
   }, [currentCanvasId]);
 
   const handleConnect: OnConnect = useCallback(
@@ -585,10 +583,13 @@ function App() {
         const currentFile = store.file;
         const handle = store.fileHandle;
         if (handle) {
-          writeToHandle(handle, currentFile);
+          writeToHandle(handle, currentFile).then(() => store.markSaved());
         } else {
           saveToFileSystem(currentFile).then((h) => {
-            if (h) store.setFileHandle(h);
+            if (h) {
+              store.setFileHandle(h);
+              store.markSaved();
+            }
           });
         }
       }
