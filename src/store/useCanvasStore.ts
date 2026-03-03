@@ -566,7 +566,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
   moveNodeToCanvas: (nodeId, fromCanvasId, toCanvasId) => {
     if (fromCanvasId === toCanvasId) return;
-    pushUndo(get, set);
     const { file } = get();
     const fromCanvas = file.canvases[fromCanvasId];
     const toCanvas = file.canvases[toCanvasId];
@@ -574,6 +573,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     const node = fromCanvas.nodes.find((n) => n.id === nodeId);
     if (!node) return;
+
+    pushUndo(get, set);
 
     // Collect IDs to remove: the node + any child annotations
     const removedIds = new Set([nodeId]);
