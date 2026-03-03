@@ -21,6 +21,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import ClassNode from './components/ClassNode';
 import AnnotationNode from './components/AnnotationNode';
+import GroupNode from './components/GroupNode';
 import { edgeTypes } from './components/edges';
 import Toolbar from './components/Toolbar';
 import ContextMenu from './components/ContextMenu';
@@ -31,7 +32,7 @@ import { useCanvasStore } from './store/useCanvasStore';
 import { deserializeFile, validateFile } from './utils/fileIO';
 import type { CanvasNodeSchema, ClassEdgeSchema, RelationshipType } from './types/schema';
 
-const nodeTypes = { classNode: ClassNode, annotationNode: AnnotationNode };
+const nodeTypes = { classNode: ClassNode, annotationNode: AnnotationNode, groupNode: GroupNode };
 
 type ColorModeSetting = 'light' | 'dark' | 'system';
 type SnapMode = 'grid' | 'guides' | 'none';
@@ -56,11 +57,15 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    type: 'node' | 'edge';
+    type: 'node' | 'edge' | 'selection';
     targetId: string;
+    selectedNodeRects?: { id: string; x: number; y: number; w: number; h: number }[];
   } | null>(null);
 
   const [guides, setGuides] = useState<GuideLine[]>([]);
+
+  // Nodes captured at group drag start — only these move with the group
+  const groupDragContainedRef = useRef<Set<string> | null>(null);
 
   // Track reconnecting edge data so custom connection line can use it
   const reconnectingEdgeRef = useRef<UmlEdgeConfig & {
@@ -180,12 +185,63 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   // Apply React Flow node changes (position during drag, selection, etc.) without undo
   // Also handles snap-to-guides: computes guides and snaps positions during drag
+  // Also handles group drag: moves contained nodes along with group
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const store = useCanvasStore.getState();
       const currentNodes = store.file.canvases[store.currentCanvasId]?.nodes;
       if (!currentNodes) return;
       const updated = applyNodeChanges(changes, currentNodes) as CanvasNodeSchema[];
+
+      // --- Group drag: move contained nodes along with the group ---
+      const dragChange = changes.find(
+        (c) => c.type === 'position' && 'dragging' in c && c.dragging
+      );
+      if (dragChange && 'id' in dragChange) {
+        const draggedNode = updated.find((n) => n.id === dragChange.id);
+        const oldNode = currentNodes.find((n) => n.id === dragChange.id);
+        if (draggedNode?.type === 'groupNode' && oldNode) {
+          const dx = draggedNode.position.x - oldNode.position.x;
+          const dy = draggedNode.position.y - oldNode.position.y;
+          if (dx !== 0 || dy !== 0) {
+            // On first drag frame, capture which nodes are inside the group
+            if (!groupDragContainedRef.current) {
+              const rfNodes = getNodes();
+              const measuredMap = new Map(
+                rfNodes.map((n) => [n.id, { w: n.measured?.width ?? 0, h: n.measured?.height ?? 0 }])
+              );
+              const gx = oldNode.position.x;
+              const gy = oldNode.position.y;
+              const gw = measuredMap.get(oldNode.id)?.w || ((oldNode as { style?: { width: number } }).style?.width ?? 200);
+              const gh = measuredMap.get(oldNode.id)?.h || ((oldNode as { style?: { height: number } }).style?.height ?? 150);
+              const contained = new Set<string>();
+              for (const n of currentNodes) {
+                if (n.id === dragChange.id || n.type === 'groupNode') continue;
+                const m = measuredMap.get(n.id);
+                const nw = m?.w ?? 200;
+                const nh = m?.h ?? 150;
+                const cx = n.position.x + nw / 2;
+                const cy = n.position.y + nh / 2;
+                if (cx >= gx && cx <= gx + gw && cy >= gy && cy <= gy + gh) {
+                  contained.add(n.id);
+                }
+              }
+              groupDragContainedRef.current = contained;
+            }
+
+            // Move only the nodes captured at drag start
+            for (let i = 0; i < updated.length; i++) {
+              const n = updated[i];
+              if (groupDragContainedRef.current.has(n.id)) {
+                updated[i] = {
+                  ...n,
+                  position: { x: n.position.x + dx, y: n.position.y + dy },
+                };
+              }
+            }
+          }
+        }
+      }
 
       if (snapMode === 'guides') {
         // When drag ends, xyflow emits a final position with its internal (unsnapped)
@@ -201,9 +257,6 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
           }
         }
 
-        const dragChange = changes.find(
-          (c) => c.type === 'position' && 'dragging' in c && c.dragging
-        );
         if (dragChange && 'id' in dragChange) {
           const rfNodes = getNodes();
           const measuredMap = new Map(
@@ -319,6 +372,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   const handleNodeDragStop = useCallback(() => {
     setGuides([]);
+    groupDragContainedRef.current = null;
   }, []);
 
   // Double-click on empty canvas: Shift+double-click creates comment, plain double-click creates class
@@ -365,6 +419,30 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       setContextMenu({ x: event.clientX, y: event.clientY, type: 'edge', targetId: edge.id });
     },
     []
+  );
+
+  const handleSelectionContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      const rfNodes = getNodes();
+      const selected = rfNodes.filter((n) => n.selected);
+      if (selected.length < 2) return;
+      const rects = selected.map((n) => ({
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        w: n.measured?.width ?? 200,
+        h: n.measured?.height ?? 150,
+      }));
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        type: 'selection',
+        targetId: '',
+        selectedNodeRects: rects,
+      });
+    },
+    [getNodes]
   );
 
   // Double-click an edge to add/edit its label
@@ -446,10 +524,14 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         onEdgesDelete={handleEdgesDelete}
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeContextMenu={handleEdgeContextMenu}
+        onSelectionContextMenu={handleSelectionContextMenu}
         onEdgeDoubleClick={handleEdgeDoubleClick}
         onPaneClick={() => setContextMenu(null)}
         onDoubleClick={handlePaneDoubleClick}
         zoomOnDoubleClick={false}
+        panOnDrag={[1]}
+        selectionOnDrag
+        panOnScroll
         colorMode={colorMode}
         connectionMode={ConnectionMode.Loose}
         snapToGrid={snapMode === 'grid'}
@@ -471,6 +553,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
           targetId={contextMenu.targetId}
           onClose={() => setContextMenu(null)}
           screenToFlowPosition={screenToFlowPosition}
+          selectedNodeRects={contextMenu.selectedNodeRects}
         />
       )}
       <AlignmentGuides guides={guides} />

@@ -60,7 +60,21 @@ export interface AnnotationNodeSchema {
   data: AnnotationNodeData;
 }
 
-export type CanvasNodeSchema = ClassNodeSchema | AnnotationNodeSchema;
+export interface GroupNodeData {
+  [key: string]: unknown;
+  label: string;
+  color?: string;
+}
+
+export interface GroupNodeSchema {
+  id: string;
+  type: 'groupNode';
+  position: { x: number; y: number };
+  data: GroupNodeData;
+  style?: { width: number; height: number };
+}
+
+export type CanvasNodeSchema = ClassNodeSchema | AnnotationNodeSchema | GroupNodeSchema;
 
 export interface ClassEdgeData {
   [key: string]: unknown;

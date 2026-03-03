@@ -10,6 +10,7 @@ import type {
 let nextNodeId = 1;
 let nextEdgeId = 1;
 let nextAnnotationId = 1;
+let nextGroupId = 1;
 let nextPropId = 1;
 let nextMethodId = 1;
 
@@ -23,6 +24,10 @@ function generateEdgeId(): string {
 
 function generateAnnotationId(): string {
   return `annotation-${nextAnnotationId++}`;
+}
+
+function generateGroupId(): string {
+  return `group-${nextGroupId++}`;
 }
 
 export function generatePropId(): string {
@@ -98,6 +103,7 @@ interface CanvasStore {
   // Node operations
   addClassNode: (x: number, y: number) => void;
   addAnnotation: (parentId: string, parentType: 'node' | 'edge', x: number, y: number) => void;
+  groupSelectedNodes: (rects: { id: string; x: number; y: number; w: number; h: number }[]) => void;
   removeNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
@@ -145,6 +151,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     nextNodeId = 1;
     nextEdgeId = 1;
     nextAnnotationId = 1;
+    nextGroupId = 1;
     nextPropId = 1;
     nextMethodId = 1;
     set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [] });
@@ -249,6 +256,41 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           [currentCanvasId]: {
             ...canvas,
             nodes: [...canvas.nodes, newNode],
+          },
+        },
+      },
+    });
+  },
+
+  groupSelectedNodes: (rects) => {
+    if (rects.length === 0) return;
+    pushUndo(get, set);
+    const { file, currentCanvasId } = get();
+    const canvas = file.canvases[currentCanvasId];
+    const padding = 20;
+    const labelHeight = 24;
+    const minX = Math.min(...rects.map((r) => r.x));
+    const minY = Math.min(...rects.map((r) => r.y));
+    const maxX = Math.max(...rects.map((r) => r.x + r.w));
+    const maxY = Math.max(...rects.map((r) => r.y + r.h));
+    const groupNode = {
+      id: generateGroupId(),
+      type: 'groupNode' as const,
+      position: { x: minX - padding, y: minY - padding - labelHeight },
+      data: { label: 'Group' },
+      style: {
+        width: maxX - minX + padding * 2,
+        height: maxY - minY + padding * 2 + labelHeight,
+      },
+    };
+    set({
+      file: {
+        ...file,
+        canvases: {
+          ...file.canvases,
+          [currentCanvasId]: {
+            ...canvas,
+            nodes: [groupNode, ...canvas.nodes],
           },
         },
       },

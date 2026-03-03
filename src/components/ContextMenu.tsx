@@ -12,13 +12,14 @@ const RELATIONSHIP_TYPES: RelationshipType[] = [
 interface ContextMenuProps {
   x: number;
   y: number;
-  type: 'node' | 'edge';
+  type: 'node' | 'edge' | 'selection';
   targetId: string;
   onClose: () => void;
   screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number };
+  selectedNodeRects?: { id: string; x: number; y: number; w: number; h: number }[];
 }
 
-export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlowPosition }: ContextMenuProps) {
+export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlowPosition, selectedNodeRects }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
@@ -26,6 +27,7 @@ export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlo
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
   const updateEdgeType = useCanvasStore((s) => s.updateEdgeType);
+  const groupSelectedNodes = useCanvasStore((s) => s.groupSelectedNodes);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -41,7 +43,7 @@ export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlo
     (color: string) => {
       if (type === 'node') {
         updateNodeData(targetId, { color });
-      } else {
+      } else if (type === 'edge') {
         updateEdgeData(targetId, { color });
       }
       onClose();
@@ -52,7 +54,7 @@ export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlo
   const handleDelete = useCallback(() => {
     if (type === 'node') {
       removeNode(targetId);
-    } else {
+    } else if (type === 'edge') {
       removeEdge(targetId);
     }
     onClose();
@@ -73,51 +75,68 @@ export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlo
 
   const handleAddComment = useCallback(() => {
     const flowPos = screenToFlowPosition({ x: x + 220, y });
-    addAnnotation(targetId, type, flowPos.x, flowPos.y);
+    addAnnotation(targetId, type === 'edge' ? 'edge' : 'node', flowPos.x, flowPos.y);
     onClose();
   }, [targetId, type, x, y, screenToFlowPosition, addAnnotation, onClose]);
 
+  const handleAddToGroup = useCallback(() => {
+    if (selectedNodeRects && selectedNodeRects.length > 0) {
+      groupSelectedNodes(selectedNodeRects);
+    }
+    onClose();
+  }, [selectedNodeRects, groupSelectedNodes, onClose]);
+
   return (
     <div className="context-menu" ref={ref} style={{ left: x, top: y }}>
-      <div className="context-menu-color-row">
-        {COLORS.map((color) => (
-          <div
-            key={color}
-            className="context-menu-color-swatch"
-            style={{ background: color }}
-            onClick={() => handleColorSelect(color)}
-          />
-        ))}
-      </div>
-      <div className="context-menu-separator" />
-
-      {type === 'node' && (
+      {type === 'selection' ? (
         <>
-          <div className="context-menu-item" onClick={handleAddStereotype}>
-            Set stereotype
+          <div className="context-menu-item" onClick={handleAddToGroup}>
+            Add to group
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="context-menu-color-row">
+            {COLORS.map((color) => (
+              <div
+                key={color}
+                className="context-menu-color-swatch"
+                style={{ background: color }}
+                onClick={() => handleColorSelect(color)}
+              />
+            ))}
           </div>
           <div className="context-menu-separator" />
-        </>
-      )}
 
-      {type === 'edge' && (
-        <>
-          {RELATIONSHIP_TYPES.map((rt) => (
-            <div key={rt} className="context-menu-item" onClick={() => handleChangeType(rt)}>
-              → {rt}
-            </div>
-          ))}
+          {type === 'node' && (
+            <>
+              <div className="context-menu-item" onClick={handleAddStereotype}>
+                Set stereotype
+              </div>
+              <div className="context-menu-separator" />
+            </>
+          )}
+
+          {type === 'edge' && (
+            <>
+              {RELATIONSHIP_TYPES.map((rt) => (
+                <div key={rt} className="context-menu-item" onClick={() => handleChangeType(rt)}>
+                  → {rt}
+                </div>
+              ))}
+              <div className="context-menu-separator" />
+            </>
+          )}
+
+          <div className="context-menu-item" onClick={handleAddComment}>
+            Add comment
+          </div>
           <div className="context-menu-separator" />
+          <div className="context-menu-item danger" onClick={handleDelete}>
+            Delete
+          </div>
         </>
       )}
-
-      <div className="context-menu-item" onClick={handleAddComment}>
-        Add comment
-      </div>
-      <div className="context-menu-separator" />
-      <div className="context-menu-item danger" onClick={handleDelete}>
-        Delete
-      </div>
     </div>
   );
 }
