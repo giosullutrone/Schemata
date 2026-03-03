@@ -40,10 +40,17 @@ export default function Sidebar() {
 
   const { getViewport, setCenter, setNodes } = useReactFlow();
 
+  const pushUndoSnapshot = useCanvasStore((s) => s.pushUndoSnapshot);
+
   // --- Project name editing ---
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(file.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync nameDraft when file is loaded externally (drag-drop, Open button)
+  useEffect(() => {
+    setNameDraft(file.name);
+  }, [file.name]);
 
   useEffect(() => {
     if (editingName && nameInputRef.current) nameInputRef.current.focus();
@@ -53,11 +60,12 @@ export default function Sidebar() {
     setEditingName(false);
     const trimmed = nameDraft.trim();
     if (trimmed && trimmed !== file.name) {
+      pushUndoSnapshot();
       useCanvasStore.setState((state) => ({
         file: { ...state.file, name: trimmed },
       }));
     }
-  }, [nameDraft, file.name]);
+  }, [nameDraft, file.name, pushUndoSnapshot]);
 
   // --- New canvas inline creation ---
   const [creatingCanvas, setCreatingCanvas] = useState(false);

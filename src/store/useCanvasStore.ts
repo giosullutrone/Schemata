@@ -134,7 +134,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   currentCanvasId: 'main',
   _undoStack: [],
   _redoStack: [],
-  sidebarOpen: true,
+  sidebarOpen: (() => {
+    const stored = localStorage.getItem('codecanvas-sidebar-open');
+    return stored !== null ? stored === 'true' : true;
+  })(),
   fileHandle: null,
 
   undo: () => {
@@ -557,6 +560,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   setSidebarOpen: (open) => {
+    localStorage.setItem('codecanvas-sidebar-open', String(open));
     set({ sidebarOpen: open });
   },
 
