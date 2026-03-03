@@ -269,6 +269,69 @@ describe('useCanvasStore', () => {
     expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
   });
 
+  it('should move a node to another canvas', () => {
+    const { addClassNode, addCanvas } = useCanvasStore.getState();
+    addClassNode(100, 200);
+    addCanvas('second', 'Second');
+    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
+
+    useCanvasStore.getState().moveNodeToCanvas(nodeId, 'main', 'second');
+
+    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
+    expect(useCanvasStore.getState().file.canvases.second.nodes).toHaveLength(1);
+    expect(useCanvasStore.getState().file.canvases.second.nodes[0].id).toBe(nodeId);
+    expect(useCanvasStore.getState().file.canvases.second.nodes[0].position).toEqual({ x: 0, y: 0 });
+  });
+
+  it('should remove edges connected to moved node', () => {
+    const { addClassNode, addEdge, addCanvas } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    addEdge(nodes[0].id, nodes[1].id, 'dependency');
+    addCanvas('second', 'Second');
+
+    useCanvasStore.getState().moveNodeToCanvas(nodes[0].id, 'main', 'second');
+
+    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
+    expect(useCanvasStore.getState().file.canvases.second.edges).toHaveLength(0);
+  });
+
+  it('should cascade-remove annotations when moving their parent node', () => {
+    const { addClassNode, addAnnotation, addCanvas } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
+    addAnnotation(nodeId, 'node', 200, 0);
+    addCanvas('second', 'Second');
+
+    useCanvasStore.getState().moveNodeToCanvas(nodeId, 'main', 'second');
+
+    // Parent + annotation both move; annotation edges cleaned
+    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
+    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
+    // Only the class node moves; annotation stays removed (it's parented)
+    const secondNodes = useCanvasStore.getState().file.canvases.second.nodes;
+    expect(secondNodes).toHaveLength(1);
+    expect(secondNodes[0].type).toBe('classNode');
+  });
+
+  it('should reorder canvases', () => {
+    const { addCanvas } = useCanvasStore.getState();
+    addCanvas('second', 'Second');
+    addCanvas('third', 'Third');
+
+    useCanvasStore.getState().reorderCanvases(['third', 'main', 'second']);
+
+    const keys = Object.keys(useCanvasStore.getState().file.canvases);
+    expect(keys).toEqual(['third', 'main', 'second']);
+  });
+
+  it('should toggle sidebar open state', () => {
+    expect(useCanvasStore.getState().sidebarOpen).toBe(true);
+    useCanvasStore.getState().setSidebarOpen(false);
+    expect(useCanvasStore.getState().sidebarOpen).toBe(false);
+  });
+
   it('should preserve other edge data when updating relationship type', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);

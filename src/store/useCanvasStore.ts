@@ -117,6 +117,16 @@ interface CanvasStore {
   updateEdgeType: (edgeId: string, type: RelationshipType) => void;
   setCanvasEdges: (edges: ClassEdgeSchema[]) => void;
   saveViewport: (viewport: { x: number; y: number; zoom: number }) => void;
+
+  // Sidebar
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  fileHandle: FileSystemFileHandle | null;
+  setFileHandle: (handle: FileSystemFileHandle | null) => void;
+
+  // Cross-canvas operations
+  moveNodeToCanvas: (nodeId: string, fromCanvasId: string, toCanvasId: string) => void;
+  reorderCanvases: (orderedIds: string[]) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -124,6 +134,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   currentCanvasId: 'main',
   _undoStack: [],
   _redoStack: [],
+  sidebarOpen: true,
+  fileHandle: null,
 
   undo: () => {
     const { _undoStack, file } = get();
@@ -154,7 +166,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     nextGroupId = 1;
     nextPropId = 1;
     nextMethodId = 1;
-    set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [] });
+    set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [], sidebarOpen: true, fileHandle: null });
   },
 
   loadFile: (file) => {
@@ -542,5 +554,68 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         },
       },
     });
+  },
+
+  setSidebarOpen: (open) => {
+    set({ sidebarOpen: open });
+  },
+
+  setFileHandle: (handle) => {
+    set({ fileHandle: handle });
+  },
+
+  moveNodeToCanvas: (nodeId, fromCanvasId, toCanvasId) => {
+    if (fromCanvasId === toCanvasId) return;
+    pushUndo(get, set);
+    const { file } = get();
+    const fromCanvas = file.canvases[fromCanvasId];
+    const toCanvas = file.canvases[toCanvasId];
+    if (!fromCanvas || !toCanvas) return;
+
+    const node = fromCanvas.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    // Collect IDs to remove: the node + any child annotations
+    const removedIds = new Set([nodeId]);
+    for (const n of fromCanvas.nodes) {
+      if (n.type === 'annotationNode' && n.data.parentId === nodeId) {
+        removedIds.add(n.id);
+      }
+    }
+
+    // Move only the target node (not annotations) to target canvas at origin
+    const movedNode = { ...node, position: { x: 0, y: 0 } };
+
+    set({
+      file: {
+        ...file,
+        canvases: {
+          ...file.canvases,
+          [fromCanvasId]: {
+            ...fromCanvas,
+            nodes: fromCanvas.nodes.filter((n) => !removedIds.has(n.id)),
+            edges: fromCanvas.edges.filter(
+              (e) => !removedIds.has(e.source) && !removedIds.has(e.target)
+            ),
+          },
+          [toCanvasId]: {
+            ...toCanvas,
+            nodes: [...toCanvas.nodes, movedNode],
+          },
+        },
+      },
+    });
+  },
+
+  reorderCanvases: (orderedIds) => {
+    pushUndo(get, set);
+    const { file } = get();
+    const reordered: Record<string, typeof file.canvases[string]> = {};
+    for (const id of orderedIds) {
+      if (file.canvases[id]) {
+        reordered[id] = file.canvases[id];
+      }
+    }
+    set({ file: { ...file, canvases: reordered } });
   },
 }));
