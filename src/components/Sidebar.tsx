@@ -72,7 +72,13 @@ export default function Sidebar() {
     setCreatingCanvas(false);
     const name = newCanvasDraft.trim();
     if (!name) return;
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const canvases = useCanvasStore.getState().file.canvases;
+    let suffix = 1;
+    const baseId = id;
+    while (canvases[id]) {
+      id = `${baseId}-${suffix++}`;
+    }
     addCanvas(id, name);
     saveViewport(getViewport());
     setCurrentCanvas(id);
@@ -97,20 +103,32 @@ export default function Sidebar() {
 
   // --- File operations ---
   const handleSave = useCallback(async () => {
-    const currentFile = useCanvasStore.getState().file;
-    if (fileHandle) {
-      await writeToHandle(fileHandle, currentFile);
-    } else {
-      const handle = await saveToFileSystem(currentFile);
-      if (handle) setFileHandle(handle);
+    try {
+      const currentFile = useCanvasStore.getState().file;
+      if (fileHandle) {
+        await writeToHandle(fileHandle, currentFile);
+      } else {
+        const handle = await saveToFileSystem(currentFile);
+        if (handle) setFileHandle(handle);
+      }
+    } catch (err) {
+      if ((err as DOMException).name !== 'AbortError') {
+        console.error('Save failed:', err);
+      }
     }
   }, [fileHandle, setFileHandle]);
 
   const handleLoad = useCallback(async () => {
-    const result = await loadFromFileSystem();
-    if (result) {
-      loadFile(result.file);
-      setFileHandle(result.handle);
+    try {
+      const result = await loadFromFileSystem();
+      if (result) {
+        loadFile(result.file);
+        setFileHandle(result.handle);
+      }
+    } catch (err) {
+      if ((err as DOMException).name !== 'AbortError') {
+        console.error('Load failed:', err);
+      }
     }
   }, [loadFile, setFileHandle]);
 
