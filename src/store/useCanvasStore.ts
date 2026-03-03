@@ -238,8 +238,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
+    const nodeId = generateAnnotationId();
+
+    // Resolve target node for the edge
+    let targetNodeId = parentId;
+    if (parentType === 'edge') {
+      const parentEdge = canvas.edges.find((e) => e.id === parentId);
+      if (parentEdge) targetNodeId = parentEdge.source;
+    }
+
+    // Pick handles based on relative position to the target
+    const targetNode = canvas.nodes.find((n) => n.id === targetNodeId);
+    const isLeft = targetNode ? x < targetNode.position.x : false;
+    const sourceHandle = isLeft ? 'right' : 'left';
+    const targetHandle = isLeft ? 'left' : 'right';
+
     const newNode = {
-      id: generateAnnotationId(),
+      id: nodeId,
       type: 'annotationNode' as const,
       position: { x, y },
       data: {
@@ -247,6 +262,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         parentId,
         parentType,
       },
+    };
+    const newEdge: ClassEdgeSchema = {
+      id: generateEdgeId(),
+      source: nodeId,
+      target: targetNodeId,
+      sourceHandle,
+      targetHandle,
+      type: 'uml' as const,
+      data: { relationshipType: 'association' as const },
     };
     set({
       file: {
@@ -256,6 +280,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           [currentCanvasId]: {
             ...canvas,
             nodes: [...canvas.nodes, newNode],
+            edges: [...canvas.edges, newEdge],
           },
         },
       },
@@ -301,6 +326,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
+    // Collect all node IDs to remove (target + cascade annotations)
+    const removedIds = new Set([nodeId]);
+    for (const n of canvas.nodes) {
+      if (n.type === 'annotationNode' && n.data.parentId === nodeId) {
+        removedIds.add(n.id);
+      }
+    }
     set({
       file: {
         ...file,
@@ -308,13 +340,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           ...file.canvases,
           [currentCanvasId]: {
             ...canvas,
-            nodes: canvas.nodes.filter((n) => {
-              if (n.id === nodeId) return false;
-              // Cascade delete: remove annotations linked to this node
-              if (n.type === 'annotationNode' && n.data.parentId === nodeId) return false;
-              return true;
-            }),
-            edges: canvas.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+            nodes: canvas.nodes.filter((n) => !removedIds.has(n.id)),
+            edges: canvas.edges.filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target)),
           },
         },
       },
@@ -413,6 +440,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     pushUndo(get, set);
     const { file, currentCanvasId } = get();
     const canvas = file.canvases[currentCanvasId];
+    // Collect annotation node IDs that will be cascade-deleted
+    const removedNodeIds = new Set(
+      canvas.nodes
+        .filter((n) => n.type === 'annotationNode' && n.data.parentId === edgeId)
+        .map((n) => n.id)
+    );
     set({
       file: {
         ...file,
@@ -420,12 +453,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           ...file.canvases,
           [currentCanvasId]: {
             ...canvas,
-            nodes: canvas.nodes.filter((n) => {
-              // Cascade delete: remove annotations linked to this edge
-              if (n.type === 'annotationNode' && n.data.parentId === edgeId) return false;
-              return true;
-            }),
-            edges: canvas.edges.filter((e) => e.id !== edgeId),
+            nodes: canvas.nodes.filter((n) => !removedNodeIds.has(n.id)),
+            edges: canvas.edges.filter((e) => e.id !== edgeId && !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)),
           },
         },
       },

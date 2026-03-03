@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { NodeResizer, type Node, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeResizer, type Node, type NodeProps } from '@xyflow/react';
 import type { GroupNodeData } from '../types/schema';
 import { useCanvasStore } from '../store/useCanvasStore';
 import './GroupNode.css';
@@ -43,6 +43,10 @@ function GroupNodeComponent({ id, data, selected }: NodeProps<GroupNodeType>) {
         isVisible={!!selected}
         lineStyle={{ borderColor: color }}
       />
+      <Handle type="target" position={Position.Top} id="top" />
+      <Handle type="source" position={Position.Bottom} id="bottom" />
+      <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Right} id="right" />
       {editing ? (
         <input
           ref={inputRef}

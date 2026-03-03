@@ -59,6 +59,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     y: number;
     type: 'node' | 'edge' | 'selection';
     targetId: string;
+    nodeType?: string;
     selectedNodeRects?: { id: string; x: number; y: number; w: number; h: number }[];
   } | null>(null);
 
@@ -406,9 +407,9 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   );
 
   const handleNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: { id: string }) => {
+    (event: React.MouseEvent, node: { id: string; type?: string }) => {
       event.preventDefault();
-      setContextMenu({ x: event.clientX, y: event.clientY, type: 'node', targetId: node.id });
+      setContextMenu({ x: event.clientX, y: event.clientY, type: 'node', targetId: node.id, nodeType: node.type });
     },
     []
   );
@@ -456,44 +457,6 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     [updateEdgeData]
   );
 
-  // Derive edges linking annotation nodes to their parents
-  const annotationEdges = canvas.nodes
-    .filter((n) => n.type === 'annotationNode')
-    .map((n) => {
-      const data = n.data as { parentId: string; parentType: 'node' | 'edge' };
-      let targetNodeId = data.parentId;
-
-      // For edge-targeted annotations, connect to the edge's source node
-      if (data.parentType === 'edge') {
-        const parentEdge = canvas.edges.find((e) => e.id === data.parentId);
-        if (parentEdge) {
-          targetNodeId = parentEdge.source;
-        }
-      }
-
-      // Pick directional handles based on relative position so the edge
-      // connects to the node border, not to sub-handles (properties/methods)
-      const targetNode = canvas.nodes.find((tn) => tn.id === targetNodeId);
-      const isLeft = targetNode ? n.position.x < targetNode.position.x : false;
-      const sourceHandle = isLeft ? 'right' : 'left';
-      const targetHandle = isLeft ? 'left' : 'right';
-
-      return {
-        id: `annotation-edge-${n.id}`,
-        source: n.id,
-        target: targetNodeId,
-        sourceHandle,
-        targetHandle,
-        type: 'default' as const,
-        style: { strokeDasharray: '5 3', stroke: 'var(--text-muted)', opacity: 0.5 },
-        selectable: false,
-        deletable: false,
-      };
-    })
-    .filter((e) =>
-      canvas.nodes.some((n) => n.id === e.target)
-    );
-
   // Elevate edges that connect to sub-handles (property/method) so they render above nodes.
   // z-index 1001 is above selected nodes (z-index 1000 from xyflow's elevateNodesOnSelect).
   const processedEdges = canvas.edges.map((e) => {
@@ -503,13 +466,11 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     return hasSubHandle ? { ...e, zIndex: 1001 } : e;
   });
 
-  const allEdges = [...processedEdges, ...annotationEdges];
-
   return (
     <>
       <ReactFlow
         nodes={canvas.nodes}
-        edges={allEdges}
+        edges={processedEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
@@ -551,6 +512,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
           y={contextMenu.y}
           type={contextMenu.type}
           targetId={contextMenu.targetId}
+          nodeType={contextMenu.nodeType}
           onClose={() => setContextMenu(null)}
           screenToFlowPosition={screenToFlowPosition}
           selectedNodeRects={contextMenu.selectedNodeRects}

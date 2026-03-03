@@ -14,12 +14,13 @@ interface ContextMenuProps {
   y: number;
   type: 'node' | 'edge' | 'selection';
   targetId: string;
+  nodeType?: string;
   onClose: () => void;
   screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number };
   selectedNodeRects?: { id: string; x: number; y: number; w: number; h: number }[];
 }
 
-export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlowPosition, selectedNodeRects }: ContextMenuProps) {
+export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, screenToFlowPosition, selectedNodeRects }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
@@ -108,7 +109,7 @@ export default function ContextMenu({ x, y, type, targetId, onClose, screenToFlo
           </div>
           <div className="context-menu-separator" />
 
-          {type === 'node' && (
+          {type === 'node' && nodeType === 'classNode' && (
             <>
               <div className="context-menu-item" onClick={handleAddStereotype}>
                 Set stereotype
