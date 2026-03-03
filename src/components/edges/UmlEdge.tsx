@@ -3,7 +3,6 @@ import {
   getBezierPath,
   BaseEdge,
   EdgeLabelRenderer,
-  useEdges,
   type EdgeProps,
   type Edge,
 } from '@xyflow/react';
@@ -38,19 +37,16 @@ export default function UmlEdge({
   targetPosition,
   data,
   selected,
+  style,
 }: EdgeProps<ClassEdge>) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
 
-  // Read current edge type from ReactFlow store so it stays synced when the
-  // user changes edge type via context menu.
-  const edges = useEdges<ClassEdge>();
-  const currentEdge = edges.find((e) => e.id === id);
-  const edgeType = (currentEdge?.type as RelationshipType) ?? 'association';
+  const relationshipType: RelationshipType = data?.relationshipType ?? 'association';
 
-  const config = EDGE_CONFIG[edgeType] ?? EDGE_CONFIG.association;
+  const config = EDGE_CONFIG[relationshipType] ?? EDGE_CONFIG.association;
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -85,6 +81,7 @@ export default function UmlEdge({
         id={id}
         path={edgePath}
         style={{
+          ...style,
           stroke: color,
           strokeWidth: selected ? 2.5 : 1.5,
           strokeDasharray: config.strokeDasharray,
@@ -121,7 +118,7 @@ export default function UmlEdge({
               }}
             />
           ) : (
-            <span>{label || edgeType}</span>
+            <span>{label || relationshipType}</span>
           )}
         </div>
       </EdgeLabelRenderer>

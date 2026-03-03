@@ -4,19 +4,19 @@
 
 .canvas-selector-btn {
   padding: 4px 12px;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  background: white;
+  background: var(--bg-primary);
   cursor: pointer;
   font-size: 12px;
-  color: #333;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .canvas-selector-btn:hover {
-  background: #f0f0f0;
+  background: var(--bg-hover);
 }
 
 .canvas-selector-dropdown {
@@ -24,10 +24,10 @@
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #d0d0d0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px var(--shadow);
   min-width: 180px;
   z-index: 100;
 }
@@ -39,14 +39,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: var(--text-primary);
 }
 
 .canvas-selector-item:hover {
-  background: #f5f5f5;
+  background: var(--bg-hover);
 }
 
 .canvas-selector-item.active {
-  background: #eef2ff;
+  background: var(--bg-active);
   font-weight: 600;
 }
 
@@ -62,23 +63,23 @@
 
 .canvas-selector-item-action {
   font-size: 10px;
-  color: #888;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px;
 }
 
 .canvas-selector-item-action:hover {
-  color: #333;
+  color: var(--text-primary);
 }
 
 .canvas-selector-new {
   padding: 6px 12px;
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
-  border-top: 1px solid #e2e2e2;
+  border-top: 1px solid var(--border-secondary);
 }
 
 .canvas-selector-new:hover {
-  background: #f5f5f5;
+  background: var(--bg-hover);
 }

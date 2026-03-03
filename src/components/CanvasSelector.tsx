@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import './CanvasSelector.css';
 
@@ -9,6 +10,9 @@ export default function CanvasSelector() {
   const addCanvas = useCanvasStore((s) => s.addCanvas);
   const removeCanvas = useCanvasStore((s) => s.removeCanvas);
   const renameCanvas = useCanvasStore((s) => s.renameCanvas);
+  const saveViewport = useCanvasStore((s) => s.saveViewport);
+
+  const { getViewport } = useReactFlow();
 
   const [open, setOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -31,10 +35,11 @@ export default function CanvasSelector() {
 
   const handleSelect = useCallback(
     (id: string) => {
+      saveViewport(getViewport());
       setCurrentCanvas(id);
       setOpen(false);
     },
-    [setCurrentCanvas]
+    [setCurrentCanvas, saveViewport, getViewport]
   );
 
   const handleNewCanvas = useCallback(() => {

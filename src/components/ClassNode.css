@@ -1,27 +1,27 @@
 .class-node {
-  background: #ffffff;
-  border: 2px solid #b1b1b7;
+  background: var(--node-bg);
+  border: 2px solid var(--border-primary);
   border-radius: 4px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   min-width: 200px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px var(--shadow);
 }
 
 .class-node.selected {
-  border-color: #1a192b;
-  box-shadow: 0 0 0 1px #1a192b;
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--text-primary);
 }
 
 .class-node-header {
   padding: 8px 12px;
   text-align: center;
-  border-bottom: 1px solid #e2e2e2;
+  border-bottom: 1px solid var(--border-secondary);
   position: relative;
 }
 
 .class-node-stereotype {
   font-size: 10px;
-  color: #888;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -29,6 +29,7 @@
   font-weight: 700;
   font-size: 14px;
   cursor: text;
+  color: var(--text-primary);
 }
 
 .class-node-comment-icon {
@@ -48,7 +49,7 @@
 
 .class-node-comment-icon:hover {
   opacity: 1;
-  background: #f0f0f0;
+  background: var(--bg-hover);
 }
 
 .class-node-comment-icon.has-comment {
@@ -57,7 +58,7 @@
 
 .class-node-section {
   padding: 6px 12px;
-  border-bottom: 1px solid #e2e2e2;
+  border-bottom: 1px solid var(--border-secondary);
   min-height: 24px;
 }
 
@@ -73,6 +74,7 @@
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   padding: 2px 0;
   position: relative;
+  color: var(--text-primary);
 }
 
 .class-node-row:hover .class-node-row-remove {
@@ -84,7 +86,7 @@
   right: -4px;
   opacity: 0;
   cursor: pointer;
-  color: #cc0000;
+  color: var(--danger);
   font-size: 10px;
   width: 14px;
   height: 14px;
@@ -95,7 +97,7 @@
 }
 
 .class-node-row-remove:hover {
-  background: #fee;
+  background: var(--danger-bg);
 }
 
 .class-node-row-comment {
@@ -115,30 +117,31 @@
 
 .class-node-add-btn {
   font-size: 11px;
-  color: #888;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px 0;
   text-align: center;
 }
 
 .class-node-add-btn:hover {
-  color: #333;
+  color: var(--text-primary);
 }
 
 .class-node-inline-input {
   border: none;
   outline: none;
-  background: #f5f5ff;
+  background: var(--bg-input);
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
   padding: 0;
   width: 100%;
+  color: var(--text-primary);
 }
 
 .class-node-comment-area {
-  background: #fffef0;
-  border: 1px solid #e8e4c0;
+  background: var(--bg-comment);
+  border: 1px solid var(--border-comment);
   border-radius: 3px;
   padding: 6px 8px;
   font-size: 11px;
@@ -148,4 +151,5 @@
   min-height: 40px;
   outline: none;
   margin-top: 4px;
+  color: var(--text-primary);
 }

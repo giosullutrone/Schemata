@@ -263,7 +263,7 @@ function MethodRow({
 // ---------------------------------------------------------------------------
 // ClassNodeComponent
 // ---------------------------------------------------------------------------
-function ClassNodeComponent({ id, data, selected }: NodeProps<ClassNodeType>) {
+function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<ClassNodeType>) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
 
   const headerStyle = data.color
@@ -301,10 +301,10 @@ function ClassNodeComponent({ id, data, selected }: NodeProps<ClassNodeType>) {
       style={borderStyle}
     >
       {/* Handles on all four sides */}
-      <Handle type="target" position={Position.Top} id="top" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
-      <Handle type="target" position={Position.Left} id="left" />
-      <Handle type="source" position={Position.Right} id="right" />
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} />
+      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} />
 
       {/* Header */}
       <div className="class-node-header" style={headerStyle}>

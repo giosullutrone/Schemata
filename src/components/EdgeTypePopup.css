@@ -1,14 +1,15 @@
 .edge-type-popup {
   position: fixed;
-  background: white;
-  border: 1px solid #d0d0d0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 12px var(--shadow-heavy);
   padding: 4px 0;
   z-index: 1000;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   min-width: 150px;
+  color: var(--text-primary);
 }
 
 .edge-type-popup-item {
@@ -20,11 +21,11 @@
 }
 
 .edge-type-popup-item:hover {
-  background: #f0f0f0;
+  background: var(--bg-hover);
 }
 
 .edge-type-popup-item-icon {
   width: 24px;
   font-size: 10px;
-  color: #888;
+  color: var(--text-muted);
 }

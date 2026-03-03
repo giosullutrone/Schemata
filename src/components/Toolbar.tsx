@@ -5,7 +5,14 @@ import { saveToFileSystem, loadFromFileSystem, writeToHandle } from '../utils/fi
 import CanvasSelector from './CanvasSelector';
 import './Toolbar.css';
 
-export default function Toolbar() {
+type ColorModeSetting = 'light' | 'dark' | 'system';
+
+interface ToolbarProps {
+  colorMode: ColorModeSetting;
+  onColorModeChange: (mode: ColorModeSetting) => void;
+}
+
+export default function Toolbar({ colorMode, onColorModeChange }: ToolbarProps) {
   const { screenToFlowPosition } = useReactFlow();
   const file = useCanvasStore((s) => s.file);
   const addClassNode = useCanvasStore((s) => s.addClassNode);
@@ -114,6 +121,23 @@ export default function Toolbar() {
       <div className="toolbar-separator" />
 
       <CanvasSelector />
+
+      <div className="toolbar-separator" />
+
+      <button
+        className="toolbar-btn"
+        onClick={() => {
+          const next: Record<ColorModeSetting, ColorModeSetting> = {
+            light: 'dark',
+            dark: 'system',
+            system: 'light',
+          };
+          onColorModeChange(next[colorMode]);
+        }}
+        title={`Color mode: ${colorMode}`}
+      >
+        {colorMode === 'light' ? 'Light' : colorMode === 'dark' ? 'Dark' : 'System'}
+      </button>
     </div>
   );
 }

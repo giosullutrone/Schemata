@@ -3,6 +3,8 @@ import type {
   CodeCanvasFile,
   ClassNodeData,
   ClassEdgeData,
+  ClassEdgeSchema,
+  ClassNodeSchema,
   RelationshipType,
 } from '../types/schema';
 
@@ -66,12 +68,16 @@ interface CanvasStore {
   removeNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, data: Partial<ClassNodeData>) => void;
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
+  setCanvasNodes: (nodes: ClassNodeSchema[]) => void;
+  pushUndoSnapshot: () => void;
 
   // Edge operations
   addEdge: (source: string, target: string, type: RelationshipType) => void;
   removeEdge: (edgeId: string) => void;
   updateEdgeData: (edgeId: string, data: Partial<ClassEdgeData>) => void;
   updateEdgeType: (edgeId: string, type: RelationshipType) => void;
+  setCanvasEdges: (edges: ClassEdgeSchema[]) => void;
+  saveViewport: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -243,6 +249,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     });
   },
 
+  setCanvasNodes: (nodes) => {
+    const { file, currentCanvasId } = get();
+    const canvas = file.canvases[currentCanvasId];
+    set({
+      file: {
+        ...file,
+        canvases: {
+          ...file.canvases,
+          [currentCanvasId]: {
+            ...canvas,
+            nodes,
+          },
+        },
+      },
+    });
+  },
+
+  pushUndoSnapshot: () => {
+    pushUndo(get, set);
+  },
+
   addEdge: (source, target, type) => {
     pushUndo(get, set);
     const { file, currentCanvasId } = get();
@@ -251,8 +278,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       id: generateEdgeId(),
       source,
       target,
-      type,
-      data: { label: type },
+      type: 'uml' as const,
+      data: { relationshipType: type, label: type },
     };
     set({
       file: {
@@ -318,8 +345,42 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           [currentCanvasId]: {
             ...canvas,
             edges: canvas.edges.map((e) =>
-              e.id === edgeId ? { ...e, type } : e
+              e.id === edgeId ? { ...e, data: { ...e.data, relationshipType: type } } : e
             ),
+          },
+        },
+      },
+    });
+  },
+
+  setCanvasEdges: (edges) => {
+    const { file, currentCanvasId } = get();
+    const canvas = file.canvases[currentCanvasId];
+    set({
+      file: {
+        ...file,
+        canvases: {
+          ...file.canvases,
+          [currentCanvasId]: {
+            ...canvas,
+            edges,
+          },
+        },
+      },
+    });
+  },
+
+  saveViewport: (viewport) => {
+    const { file, currentCanvasId } = get();
+    const canvas = file.canvases[currentCanvasId];
+    set({
+      file: {
+        ...file,
+        canvases: {
+          ...file.canvases,
+          [currentCanvasId]: {
+            ...canvas,
+            viewport,
           },
         },
       },

@@ -60,7 +60,8 @@ describe('useCanvasStore', () => {
     addEdge(nodes[0].id, nodes[1].id, 'inheritance');
     const edges = useCanvasStore.getState().file.canvases.main.edges;
     expect(edges).toHaveLength(1);
-    expect(edges[0].type).toBe('inheritance');
+    expect(edges[0].type).toBe('uml');
+    expect(edges[0].data.relationshipType).toBe('inheritance');
     expect(edges[0].source).toBe(nodes[0].id);
     expect(edges[0].target).toBe(nodes[1].id);
   });
@@ -110,6 +111,37 @@ describe('useCanvasStore', () => {
     useCanvasStore.getState().updateNodePosition(nodeId, 50, 75);
     const node = useCanvasStore.getState().file.canvases.main.nodes[0];
     expect(node.position).toEqual({ x: 50, y: 75 });
+  });
+
+  it('should update edge relationship type via data', () => {
+    const { addClassNode, addEdge } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    addEdge(nodes[0].id, nodes[1].id, 'dependency');
+    const edgeId = useCanvasStore.getState().file.canvases.main.edges[0].id;
+
+    useCanvasStore.getState().updateEdgeType(edgeId, 'composition');
+    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
+    expect(edge.type).toBe('uml');
+    expect(edge.data.relationshipType).toBe('composition');
+  });
+
+  it('should set canvas edges without undo', () => {
+    const { addClassNode, addEdge } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    addEdge(nodes[0].id, nodes[1].id, 'dependency');
+
+    useCanvasStore.getState().setCanvasEdges([]);
+    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
+  });
+
+  it('should save viewport for current canvas', () => {
+    useCanvasStore.getState().saveViewport({ x: 100, y: 200, zoom: 1.5 });
+    const canvas = useCanvasStore.getState().file.canvases.main;
+    expect(canvas.viewport).toEqual({ x: 100, y: 200, zoom: 1.5 });
   });
 });
 

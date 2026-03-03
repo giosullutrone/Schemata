@@ -8,12 +8,12 @@
   left: 0;
   right: 0;
   height: 1px;
-  border-top: 1px dashed #4A90D9;
+  border-top: 1px dashed var(--guide-color);
 }
 
 .alignment-guide.vertical {
   top: 0;
   bottom: 0;
   width: 1px;
-  border-left: 1px dashed #4A90D9;
+  border-left: 1px dashed var(--guide-color);
 }

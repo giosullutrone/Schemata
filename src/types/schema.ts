@@ -49,6 +49,7 @@ export interface ClassNodeSchema {
 
 export interface ClassEdgeData {
   [key: string]: unknown;
+  relationshipType: RelationshipType;
   label?: string;
   comment?: string;
   color?: string;
@@ -58,7 +59,7 @@ export interface ClassEdgeSchema {
   id: string;
   source: string;
   target: string;
-  type: RelationshipType;
+  type: 'uml';
   data: ClassEdgeData;
 }
 
@@ -66,6 +67,7 @@ export interface CanvasData {
   name: string;
   nodes: ClassNodeSchema[];
   edges: ClassEdgeSchema[];
+  viewport?: { x: number; y: number; zoom: number };
 }
 
 export interface CodeCanvasFile {
