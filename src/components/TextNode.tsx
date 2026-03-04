@@ -7,13 +7,20 @@ import { useCanvasStore } from '../store/useCanvasStore';
 import type { TextNodeData } from '../types/schema';
 import './TextNode.css';
 
-function TextNodeComponent({ id, data, selected }: NodeProps) {
+function TextNodeComponent({ id, data, selected, isConnectable }: NodeProps) {
   const d = data as unknown as TextNodeData;
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(d.text);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Sync draft from store when not editing (e.g. after undo/redo)
+  useEffect(() => {
+    if (!editing) {
+      setDraft(d.text);
+    }
+  }, [d.text, editing]);
 
   useEffect(() => {
     if (editing) {
@@ -22,9 +29,8 @@ function TextNodeComponent({ id, data, selected }: NodeProps) {
   }, [editing]);
 
   const commit = useCallback(() => {
-    const trimmed = draft.trim();
-    if (trimmed !== d.text) {
-      updateNodeData(id, { text: trimmed });
+    if (draft !== d.text) {
+      updateNodeData(id, { text: draft });
     }
     setEditing(false);
   }, [draft, d.text, id, updateNodeData]);
@@ -43,27 +49,33 @@ function TextNodeComponent({ id, data, selected }: NodeProps) {
   return (
     <div className={`text-node${selected ? ' selected' : ''}`} style={nodeStyle}>
       <NodeResizer isVisible={!!selected} minWidth={120} minHeight={40} />
-      <Handle type="source" position={Position.Top} id="top" className="text-node-sub-handle" />
-      <Handle type="source" position={Position.Right} id="right" className="text-node-sub-handle" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="text-node-sub-handle" />
-      <Handle type="source" position={Position.Left} id="left" className="text-node-sub-handle" />
+      <Handle type="target" position={Position.Top} id="top" className="text-node-sub-handle" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Right} id="right" className="text-node-sub-handle" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="text-node-sub-handle" isConnectable={isConnectable} />
+      <Handle type="target" position={Position.Left} id="left" className="text-node-sub-handle" isConnectable={isConnectable} />
       {editing ? (
         <textarea
           ref={textareaRef}
           className="text-node-textarea nodrag nowheel"
+          aria-label="Edit markdown text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
+              e.stopPropagation();
               setDraft(d.text);
               setEditing(false);
+            }
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              commit();
             }
           }}
         />
       ) : (
         <div
-          className="text-node-content"
+          className="text-node-content nowheel"
           style={{ textAlign }}
           onDoubleClick={() => {
             setDraft(d.text);
@@ -72,7 +84,18 @@ function TextNodeComponent({ id, data, selected }: NodeProps) {
         >
           {d.text ? (
             <div className="text-node-markdown">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{d.text}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children, ...props }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                      {children}
+                    </a>
+                  ),
+                }}
+              >
+                {d.text}
+              </ReactMarkdown>
             </div>
           ) : (
             <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Double-click to edit...</span>

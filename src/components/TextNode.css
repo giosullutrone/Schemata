@@ -23,7 +23,7 @@
 .text-node-content {
   flex: 1;
   overflow-y: auto;
-  cursor: text;
+  cursor: default;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary);
@@ -104,7 +104,7 @@
 }
 
 .text-node-markdown a {
-  color: #4A90D9;
+  color: var(--link-color);
   text-decoration: underline;
 }
 

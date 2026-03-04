@@ -29,6 +29,7 @@ html, body, #root {
   --edge-label-border: #e2e2e2;
   --edge-label-bg: #ffffff;
   --guide-color: #4A90D9;
+  --link-color: #4A90D9;
 }
 
 .dark {
@@ -51,4 +52,5 @@ html, body, #root {
   --edge-label-border: #444444;
   --edge-label-bg: #2d2d2d;
   --guide-color: #569cd6;
+  --link-color: #6AB0F3;
 }

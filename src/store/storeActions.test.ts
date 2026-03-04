@@ -191,6 +191,33 @@ describe('addTextNode', () => {
     expect(edge.sourceHandle).toBe('right');
     expect(edge.targetHandle).toBe('left');
   });
+
+  it('should apply custom text from options', () => {
+    useCanvasStore.getState().addTextNode(320, 100, { text: 'Custom note' });
+    const textNode = getFile().nodes.find((n) => n.type === 'textNode');
+    expect(textNode!.data.text).toBe('Custom note');
+  });
+
+  it('should create edge to edge source when parentType is edge', () => {
+    // Setup: create an edge between two class nodes
+    setup({
+      nodes: [
+        { id: 'class-1', type: 'classNode', position: { x: 100, y: 100 }, data: { name: 'A', properties: [], methods: [] } },
+        { id: 'class-2', type: 'classNode', position: { x: 300, y: 100 }, data: { name: 'B', properties: [], methods: [] } },
+      ],
+      edges: [
+        { id: 'edge-1', source: 'class-1', target: 'class-2', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
+      ],
+    });
+    useCanvasStore.getState().addTextNode(200, 200, { parentId: 'edge-1', parentType: 'edge' });
+    const file = getFile();
+    const textNode = file.nodes.find((n) => n.type === 'textNode');
+    expect(textNode).toBeDefined();
+    // Edge should connect text node to the edge's source node (class-1)
+    const commentEdge = file.edges.find((e) => e.source === textNode!.id);
+    expect(commentEdge).toBeDefined();
+    expect(commentEdge!.target).toBe('class-1');
+  });
 });
 
 describe('groupSelectedNodes', () => {

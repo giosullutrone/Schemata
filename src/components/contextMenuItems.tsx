@@ -50,6 +50,8 @@ export function BorderStyleRow({ onSelect, current }: { onSelect: (style: string
       {BORDER_STYLES.map((bs) => (
         <div
           key={bs.value}
+          role="button"
+          aria-label={bs.label}
           className={`context-menu-icon-swatch${current === bs.value ? ' active' : ''}`}
           title={bs.label}
           onClick={() => onSelect(bs.value)}
@@ -74,6 +76,8 @@ export function TextAlignRow({ onSelect, current }: { onSelect: (align: string) 
       {TEXT_ALIGNS.map((ta) => (
         <div
           key={ta.value}
+          role="button"
+          aria-label={ta.label}
           className={`context-menu-icon-swatch${current === ta.value ? ' active' : ''}`}
           title={ta.label}
           onClick={() => onSelect(ta.value)}
