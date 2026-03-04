@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { serializeFile, deserializeFile, validateFile } from './fileIO';
+import { migrateFile } from '../store/useCanvasStore';
 import type { CodeCanvasFile } from '../types/schema';
 
 const validFile: CodeCanvasFile = {
@@ -163,14 +164,46 @@ describe('fileIO', () => {
       name: 'Multi',
       nodes: [
         { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
-        { id: 'a1', type: 'annotationNode', position: { x: 10, y: 10 }, data: { comment: 'hi', parentId: 'c1', parentType: 'node' } },
+        { id: 't1', type: 'textNode', position: { x: 10, y: 10 }, data: { text: 'hi' } },
         { id: 'g1', type: 'groupNode', position: { x: 20, y: 20 }, data: { label: 'Group' }, style: { width: 100, height: 100 } },
       ],
       edges: [
-        { id: 'e1', source: 'c1', target: 'a1', type: 'uml', data: { relationshipType: 'association' } },
+        { id: 'e1', source: 'c1', target: 't1', type: 'uml', data: { relationshipType: 'association' } },
       ],
     };
     const errors = validateFile(file);
     expect(errors).toEqual([]);
+  });
+});
+
+describe('migrateFile — annotationNode to textNode', () => {
+  it('should migrate annotationNode to textNode', () => {
+    const file: CodeCanvasFile = {
+      version: '1.0',
+      name: 'Legacy',
+      nodes: [
+        { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
+        {
+          id: 'a1',
+          type: 'annotationNode' as unknown as 'textNode',
+          position: { x: 10, y: 10 },
+          data: { comment: 'hello world', parentId: 'c1', parentType: 'node', color: '#F39C12' } as unknown as CodeCanvasFile['nodes'][0]['data'],
+        },
+      ],
+      edges: [],
+    };
+    const migrated = migrateFile(file);
+    expect(migrated).not.toBe(file);
+    const textNode = migrated.nodes.find((n) => n.id === 'a1');
+    expect(textNode).toBeDefined();
+    expect(textNode!.type).toBe('textNode');
+    expect(textNode!.data.text).toBe('hello world');
+    expect(textNode!.data.color).toBe('#F39C12');
+    expect(textNode!.data.borderStyle).toBe('dashed');
+    expect(textNode!.data.opacity).toBe(0.85);
+    // parentId and parentType should be removed
+    expect((textNode!.data as Record<string, unknown>).parentId).toBeUndefined();
+    expect((textNode!.data as Record<string, unknown>).parentType).toBeUndefined();
+    expect((textNode!.data as Record<string, unknown>).comment).toBeUndefined();
   });
 });

@@ -22,7 +22,7 @@ export function deserializeFile(json: string): CodeCanvasFile {
   return raw as CodeCanvasFile;
 }
 
-const VALID_NODE_TYPES = new Set(['classNode', 'annotationNode', 'groupNode']);
+const VALID_NODE_TYPES = new Set(['classNode', 'textNode', 'groupNode']);
 const VALID_EDGE_TYPE = 'uml';
 
 export function validateFile(file: CodeCanvasFile): string[] {
