@@ -7,14 +7,14 @@ import './Sidebar.css';
 
 function getNodeDisplayName(node: { type?: string; data: Record<string, unknown> }): string {
   if (node.type === 'classNode') return (node.data.name as string) || 'Class';
-  if (node.type === 'annotationNode') return (node.data.comment as string) || 'Comment';
+  if (node.type === 'textNode') return (node.data.text as string)?.split('\n')[0] || 'Text';
   if (node.type === 'groupNode') return (node.data.label as string) || 'Group';
   return 'Node';
 }
 
 function getNodeBadge(type?: string): { label: string; className: string } {
   if (type === 'classNode') return { label: 'C', className: 'class' };
-  if (type === 'annotationNode') return { label: 'A', className: 'annotation' };
+  if (type === 'textNode') return { label: 'T', className: 'text' };
   if (type === 'groupNode') return { label: 'G', className: 'group' };
   return { label: '?', className: '' };
 }
@@ -69,7 +69,7 @@ export default function Sidebar() {
   const setActiveFile = useCanvasStore((s) => s.setActiveFile);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const addAnnotation = useCanvasStore((s) => s.addAnnotation);
+  const addTextNode = useCanvasStore((s) => s.addTextNode);
   const saveViewport = useCanvasStore((s) => s.saveViewport);
   const renameFile = useCanvasStore((s) => s.renameFile);
 
@@ -571,7 +571,14 @@ export default function Sidebar() {
                     saveViewport(getViewport());
                     setActiveFile(fp);
                   }
-                  addAnnotation(nodeId, 'node', nodeData.position.x + 220, nodeData.position.y);
+                  addTextNode(nodeData.position.x + 220, nodeData.position.y, {
+                    parentId: nodeId,
+                    parentType: 'node',
+                    color: '#F39C12',
+                    borderStyle: 'dashed',
+                    opacity: 0.85,
+                    text: 'Comment',
+                  });
                   setCtxMenu(null);
                 }}
               >
