@@ -165,6 +165,27 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const folderName = useCanvasStore((s) => s.folderName);
   const files = useCanvasStore((s) => s.files);
 
+  // Keyboard shortcuts for node creation: N = new class, Shift+N = new annotation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'n' && e.key !== 'N') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target as HTMLElement).tagName;
+      const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+      if (isEditing) return;
+      if (!canvas) return;
+      e.preventDefault();
+      const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      if (e.shiftKey) {
+        addAnnotation('', 'node', center.x, center.y);
+      } else {
+        addClassNode(center.x, center.y);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [canvas, screenToFlowPosition, addClassNode, addAnnotation]);
+
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
@@ -485,8 +506,10 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   if (!canvas) {
     const hasFolderOpen = folderName !== null;
     const hasFiles = Object.keys(files).length > 0;
+    const hasFileSystemAPI = 'showDirectoryPicker' in window;
     let message = 'Open a folder to get started';
-    if (hasFolderOpen && !hasFiles) message = 'No canvas files found in this folder';
+    if (!hasFileSystemAPI) message = 'Your browser does not support the File System Access API. Please use Chrome or Edge.';
+    else if (hasFolderOpen && !hasFiles) message = 'No canvas files found in this folder';
     else if (hasFolderOpen) message = 'Select a file from the sidebar';
 
     return (
@@ -496,7 +519,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       }}>
         <div style={{ textAlign: 'center' }}>
           <p style={{ marginBottom: 12 }}>{message}</p>
-          {!hasFolderOpen && (
+          {!hasFolderOpen && hasFileSystemAPI && (
             <button
               onClick={() => useCanvasStore.getState().openFolder()}
               style={{
@@ -546,7 +569,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         defaultEdgeOptions={{ type: 'uml' }}
         connectionLineComponent={ReconnectConnectionLine}
         connectionRadius={20}
-        deleteKeyCode="Backspace"
+        deleteKeyCode={['Backspace', 'Delete']}
       >
         <Background gap={20} />
         <Controls />
@@ -615,17 +638,31 @@ function App() {
   // Keyboard shortcuts: Undo/Redo, Save, Toggle sidebar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        if (isEditing) return; // Let browser handle undo in text fields
         e.preventDefault();
         undo();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        if (isEditing) return;
+        e.preventDefault();
+        redo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y' && !e.shiftKey) {
+        if (isEditing) return;
         e.preventDefault();
         redo();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        useCanvasStore.getState().saveActiveFile();
+        if (e.shiftKey) {
+          useCanvasStore.getState().saveAllFiles();
+        } else {
+          useCanvasStore.getState().saveActiveFile();
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
@@ -636,6 +673,18 @@ function App() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [undo, redo]);
+
+  // Warn before closing tab with unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      const dirtyFiles = useCanvasStore.getState()._dirtyFiles;
+      if (Object.keys(dirtyFiles).length > 0) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   return (
     <div

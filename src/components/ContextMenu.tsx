@@ -1,7 +1,7 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
-import type { RelationshipType } from '../types/schema';
-import { COLORS } from '../constants';
+import type { RelationshipType, Stereotype } from '../types/schema';
+import { ColorRow, StereotypeMenuItems } from './contextMenuItems';
 import './ContextMenu.css';
 
 const RELATIONSHIP_TYPES: RelationshipType[] = [
@@ -35,9 +35,26 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
         onClose();
       }
     };
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKeydown);
+    };
   }, [onClose]);
+
+  // Clamp menu position to stay within viewport
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const clampedX = Math.min(x, window.innerWidth - rect.width - 4);
+    const clampedY = Math.min(y, window.innerHeight - rect.height - 4);
+    ref.current.style.left = `${Math.max(0, clampedX)}px`;
+    ref.current.style.top = `${Math.max(0, clampedY)}px`;
+  }, [x, y]);
 
   const handleColorSelect = useCallback(
     (color: string) => {
@@ -68,10 +85,13 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
     [targetId, updateEdgeType, onClose]
   );
 
-  const handleAddStereotype = useCallback(() => {
-    updateNodeData(targetId, { stereotype: 'interface' });
-    onClose();
-  }, [targetId, updateNodeData, onClose]);
+  const handleSetStereotype = useCallback(
+    (stereotype: Stereotype | undefined) => {
+      updateNodeData(targetId, { stereotype });
+      onClose();
+    },
+    [targetId, updateNodeData, onClose]
+  );
 
   const handleAddComment = useCallback(() => {
     const flowPos = screenToFlowPosition({ x: x + 220, y });
@@ -96,23 +116,12 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
         </>
       ) : (
         <>
-          <div className="context-menu-color-row">
-            {COLORS.map((color) => (
-              <div
-                key={color}
-                className="context-menu-color-swatch"
-                style={{ background: color }}
-                onClick={() => handleColorSelect(color)}
-              />
-            ))}
-          </div>
+          <ColorRow onSelect={handleColorSelect} />
           <div className="context-menu-separator" />
 
           {type === 'node' && nodeType === 'classNode' && (
             <>
-              <div className="context-menu-item" onClick={handleAddStereotype}>
-                Set stereotype
-              </div>
+              <StereotypeMenuItems onSet={handleSetStereotype} />
               <div className="context-menu-separator" />
             </>
           )}

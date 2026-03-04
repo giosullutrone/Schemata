@@ -91,6 +91,8 @@ export async function openFolder(): Promise<FileSystemDirectoryHandle | null> {
   }
 }
 
+const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg', '__pycache__', '.next', 'dist', 'build']);
+
 export async function scanFolder(
   dirHandle: FileSystemDirectoryHandle,
   basePath: string = '',
@@ -99,6 +101,7 @@ export async function scanFolder(
   for await (const entry of dirHandle.values()) {
     const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
     if (entry.kind === 'directory') {
+      if (EXCLUDED_DIRS.has(entry.name)) continue;
       const subResults = await scanFolder(entry as FileSystemDirectoryHandle, entryPath);
       results.push(...subResults);
     } else if (entry.kind === 'file' && entry.name.endsWith('.codecanvas.json')) {
@@ -133,8 +136,21 @@ export async function createFileInFolder(
       targetDir = await targetDir.getDirectoryHandle(part);
     }
   }
-  const handle = await targetDir.getFileHandle(fileName, { create: true });
+  // Prevent overwriting existing files — append numeric suffix if needed
+  let finalName = fileName;
+  const baseName = fileName.replace('.codecanvas.json', '');
+  let attempt = 0;
+  while (attempt < 100) {
+    try {
+      await targetDir.getFileHandle(finalName, { create: false });
+      attempt++;
+      finalName = `${baseName}-${attempt}.codecanvas.json`;
+    } catch {
+      break; // File doesn't exist, safe to use
+    }
+  }
+  const handle = await targetDir.getFileHandle(finalName, { create: true });
   await writeToHandle(handle, file);
-  const relativePath = subPath ? `${subPath}/${fileName}` : fileName;
+  const relativePath = subPath ? `${subPath}/${finalName}` : finalName;
   return { relativePath, file, handle };
 }

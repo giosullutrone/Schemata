@@ -121,3 +121,15 @@
 .class-node-row:hover .class-node-sub-handle {
   opacity: 1;
 }
+
+.class-node-inline-error {
+  outline: 2px solid var(--danger);
+  outline-offset: 1px;
+  border-radius: 2px;
+  animation: inline-error-fade 1.5s ease-out forwards;
+}
+
+@keyframes inline-error-fade {
+  0% { outline-color: var(--danger); }
+  100% { outline-color: transparent; }
+}

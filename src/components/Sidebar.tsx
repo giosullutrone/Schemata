@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, type KeyboardEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { buildFolderTree, type TreeNode, type FolderTreeNode, type FileTreeNode } from '../utils/folderTree';
-import { COLORS } from '../constants';
+import { ColorRow, StereotypeMenuItems } from './contextMenuItems';
 import './Sidebar.css';
 
 function getNodeDisplayName(node: { type?: string; data: Record<string, unknown> }): string {
@@ -19,17 +19,57 @@ function getNodeBadge(type?: string): { label: string; className: string } {
   return { label: '?', className: '' };
 }
 
+// Memo'd component to avoid re-rendering all node rows when unrelated state changes
+const SidebarNodeRow = memo(function SidebarNodeRow({
+  node,
+  filePath,
+  depth,
+  onNodeClick,
+  onContextMenu,
+}: {
+  node: { id: string; type?: string; data: Record<string, unknown> };
+  filePath: string;
+  depth: number;
+  onNodeClick: (nodeId: string, filePath: string) => void;
+  onContextMenu: (e: React.MouseEvent, filePath: string, nodeId: string, nodeType?: string) => void;
+}) {
+  const badge = getNodeBadge(node.type);
+  const nodeColor = node.data.color as string | undefined;
+  const rowStyle: React.CSSProperties = {
+    paddingLeft: 10 + depth * 16,
+    ...(nodeColor ? { background: `${nodeColor}18` } : {}),
+  };
+  return (
+    <div
+      className="sidebar-node-row"
+      style={rowStyle}
+      onClick={() => onNodeClick(node.id, filePath)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e, filePath, node.id, node.type);
+      }}
+    >
+      <span className="sidebar-node-name">{getNodeDisplayName(node)}</span>
+      <span className={`sidebar-node-badge ${badge.className}`}>{badge.label}</span>
+    </div>
+  );
+});
+
 export default function Sidebar() {
   const files = useCanvasStore((s) => s.files);
   const activeFilePath = useCanvasStore((s) => s.activeFilePath);
   const folderName = useCanvasStore((s) => s.folderName);
   const sidebarOpen = useCanvasStore((s) => s.sidebarOpen);
   const dirtyFiles = useCanvasStore((s) => s._dirtyFiles);
+  const loading = useCanvasStore((s) => s._loading);
+  const error = useCanvasStore((s) => s._error);
 
   const setSidebarOpen = useCanvasStore((s) => s.setSidebarOpen);
   const setActiveFile = useCanvasStore((s) => s.setActiveFile);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const addAnnotation = useCanvasStore((s) => s.addAnnotation);
   const saveViewport = useCanvasStore((s) => s.saveViewport);
   const renameFile = useCanvasStore((s) => s.renameFile);
 
@@ -84,20 +124,14 @@ export default function Sidebar() {
       const currentName = files[activeFilePath]?.name;
       if (trimmed !== currentName) {
         renameFile(trimmed);
-        try { await useCanvasStore.getState().saveActiveFile(); } catch { /* ignore */ }
+        await useCanvasStore.getState().saveActiveFile();
       }
     }
   }, [fileNameDraft, activeFilePath, files, renameFile]);
 
   // --- Save ---
   const handleSave = useCallback(async () => {
-    try {
-      await useCanvasStore.getState().saveActiveFile();
-    } catch (err) {
-      if ((err as DOMException).name !== 'AbortError') {
-        console.error('Save failed:', err);
-      }
-    }
+    await useCanvasStore.getState().saveActiveFile();
   }, []);
 
   // --- Open folder ---
@@ -125,21 +159,24 @@ export default function Sidebar() {
       if (!af) return;
       const node = af.nodes.find((n) => n.id === nodeId);
       if (!node) return;
-      // Use a short delay when switching files so the canvas has time to render
+      const needsSwitch = fp !== store.activeFilePath;
+      if (needsSwitch) {
+        saveViewport(getViewport());
+        setActiveFile(fp);
+      }
       const pan = () => {
         setCenter(node.position.x + 100, node.position.y + 75, { duration: 300 });
         setNodes((nodes) =>
           nodes.map((n) => ({ ...n, selected: n.id === nodeId }))
         );
       };
-      if (fp !== store.activeFilePath) {
-        // File was just switched — wait for canvas to mount
+      if (needsSwitch) {
         setTimeout(pan, 50);
       } else {
         pan();
       }
     },
-    [setCenter, setNodes]
+    [setCenter, setNodes, saveViewport, getViewport, setActiveFile]
   );
 
   // --- Context menu ---
@@ -154,6 +191,21 @@ export default function Sidebar() {
   } | null>(null);
   const ctxMenuRef = useRef<HTMLDivElement>(null);
 
+  // Stable callback for node context menu (used by memo'd SidebarNodeRow)
+  const handleNodeContextMenu = useCallback(
+    (e: React.MouseEvent, filePath: string, nodeId: string, nodeType?: string) => {
+      setCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        kind: 'node',
+        filePath,
+        nodeId,
+        nodeType,
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     if (!ctxMenu) return;
     const handleClick = (e: MouseEvent) => {
@@ -161,12 +213,26 @@ export default function Sidebar() {
         setCtxMenu(null);
       }
     };
+    const handleKeydown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setCtxMenu(null);
+    };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKeydown);
+    };
   }, [ctxMenu]);
 
-  // --- Active file data ---
-  const activeFile = activeFilePath ? files[activeFilePath] ?? null : null;
+  // Clamp sidebar context menu to stay within viewport
+  useLayoutEffect(() => {
+    if (!ctxMenu || !ctxMenuRef.current) return;
+    const rect = ctxMenuRef.current.getBoundingClientRect();
+    const clampedX = Math.min(ctxMenu.x, window.innerWidth - rect.width - 4);
+    const clampedY = Math.min(ctxMenu.y, window.innerHeight - rect.height - 4);
+    ctxMenuRef.current.style.left = `${Math.max(0, clampedX)}px`;
+    ctxMenuRef.current.style.top = `${Math.max(0, clampedY)}px`;
+  }, [ctxMenu]);
 
   // --- Render helpers ---
   function renderTreeNodes(nodes: TreeNode[], depth: number) {
@@ -194,7 +260,6 @@ export default function Sidebar() {
           <span className="sidebar-canvas-name">{folder.name}</span>
         </div>
         {!collapsed && renderTreeNodes(folder.children, depth + 1)}
-        {/* Inline input for new file creation */}
         {creatingFileInFolder === folder.path && (
           <div className="sidebar-file-row" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>
             <input
@@ -246,7 +311,6 @@ export default function Sidebar() {
             {hasNodes ? (collapsed ? '\u25B6' : '\u25BC') : ''}
           </span>
           <span className="sidebar-file-icon">{'\uD83D\uDCC4'}</span>
-          {/* Show editable name if this is the active file and we're editing */}
           {isActiveFile && editingFileName ? (
             <input
               ref={fileNameInputRef}
@@ -267,46 +331,17 @@ export default function Sidebar() {
             </span>
           )}
         </div>
-        {/* Node children — for any expanded file */}
         {!collapsed && hasNodes &&
-          fileData.nodes.map((node) => {
-            const badge = getNodeBadge(node.type);
-            const nodeColor = node.data.color as string | undefined;
-            const rowStyle: React.CSSProperties = {
-              paddingLeft: 10 + (depth + 1) * 16,
-              ...(nodeColor ? { background: `${nodeColor}18` } : {}),
-            };
-            return (
-              <div
-                key={node.id}
-                className="sidebar-node-row"
-                style={rowStyle}
-                onClick={() => {
-                  // Switch to the file first if not active, then pan to node
-                  if (!isActiveFile) {
-                    saveViewport(getViewport());
-                    setActiveFile(file.relativePath);
-                  }
-                  handleNodeClick(node.id, file.relativePath);
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setCtxMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    kind: 'node',
-                    filePath: file.relativePath,
-                    nodeId: node.id,
-                    nodeType: node.type,
-                  });
-                }}
-              >
-                <span className="sidebar-node-name">{getNodeDisplayName(node)}</span>
-                <span className={`sidebar-node-badge ${badge.className}`}>{badge.label}</span>
-              </div>
-            );
-          })}
+          fileData.nodes.map((node) => (
+            <SidebarNodeRow
+              key={node.id}
+              node={node}
+              filePath={file.relativePath}
+              depth={depth + 1}
+              onNodeClick={handleNodeClick}
+              onContextMenu={handleNodeContextMenu}
+            />
+          ))}
       </div>
     );
   }
@@ -343,7 +378,7 @@ export default function Sidebar() {
         <div className="sidebar-actions">
           <button
             className="sidebar-action-btn"
-            disabled={!hasFolderOpen}
+            disabled={!hasFolderOpen || loading}
             onClick={() => {
               setNewFileDraft('');
               setCreatingFileInFolder('');
@@ -351,14 +386,42 @@ export default function Sidebar() {
           >
             + New File
           </button>
-          <button className="sidebar-action-btn" onClick={handleOpenFolder}>
+          <button className="sidebar-action-btn" disabled={loading} onClick={handleOpenFolder}>
             Open Folder
+          </button>
+          <button
+            className="sidebar-action-btn"
+            disabled={!hasFolderOpen || loading}
+            onClick={() => useCanvasStore.getState().refreshFolder()}
+            title="Refresh folder to discover new files"
+          >
+            &#x21BB;
           </button>
         </div>
 
+        {/* Loading indicator */}
+        {loading && (
+          <div style={{ padding: '4px 10px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+            Loading...
+          </div>
+        )}
+
+        {/* Error banner */}
+        {error && (
+          <div
+            style={{
+              padding: '6px 10px', fontSize: 11, color: '#E74C3C', background: '#E74C3C18',
+              cursor: 'pointer', textAlign: 'center',
+            }}
+            onClick={() => useCanvasStore.getState().clearError()}
+            title="Click to dismiss"
+          >
+            {error}
+          </div>
+        )}
+
         {/* Tree */}
         <div className="sidebar-tree">
-          {/* New file input at root level */}
           {creatingFileInFolder === '' && (
             <div className="sidebar-file-row" style={{ paddingLeft: 26 }}>
               <input
@@ -381,7 +444,6 @@ export default function Sidebar() {
 
           {folderName ? (
             <>
-              {/* Root folder row */}
               <div
                 className="sidebar-folder-row"
                 style={{ paddingLeft: 10 }}
@@ -462,39 +524,60 @@ export default function Sidebar() {
               >
                 New Canvas File Here
               </div>
+              <div className="context-menu-separator" />
+              <div
+                className="context-menu-item danger"
+                onClick={async () => {
+                  const fp = ctxMenu.filePath!;
+                  const fileData = files[fp];
+                  const displayName = fileData?.name ?? fp;
+                  setCtxMenu(null);
+                  if (window.confirm(`Delete "${displayName}"?\n\nThis will permanently remove the file from disk.`)) {
+                    await useCanvasStore.getState().removeFile(fp);
+                  }
+                }}
+              >
+                Delete File
+              </div>
             </>
           )}
 
           {ctxMenu.kind === 'node' && ctxMenu.nodeId && (
             <>
-              <div className="context-menu-color-row">
-                {COLORS.map((color) => (
-                  <div
-                    key={color}
-                    className="context-menu-color-swatch"
-                    style={{ background: color }}
-                    onClick={() => {
-                      updateNodeData(ctxMenu.nodeId!, { color });
-                      setCtxMenu(null);
-                    }}
-                  />
-                ))}
-              </div>
+              <ColorRow onSelect={(color) => {
+                updateNodeData(ctxMenu.nodeId!, { color });
+                setCtxMenu(null);
+              }} />
               <div className="context-menu-separator" />
               {ctxMenu.nodeType === 'classNode' && (
                 <>
-                  <div
-                    className="context-menu-item"
-                    onClick={() => {
-                      updateNodeData(ctxMenu.nodeId!, { stereotype: 'interface' });
-                      setCtxMenu(null);
-                    }}
-                  >
-                    Set stereotype
-                  </div>
+                  <StereotypeMenuItems onSet={(stereotype) => {
+                    updateNodeData(ctxMenu.nodeId!, { stereotype });
+                    setCtxMenu(null);
+                  }} />
                   <div className="context-menu-separator" />
                 </>
               )}
+              <div
+                className="context-menu-item"
+                onClick={() => {
+                  const nodeId = ctxMenu.nodeId!;
+                  const filePath = ctxMenu.filePath;
+                  const fp = filePath ?? activeFilePath;
+                  if (!fp) { setCtxMenu(null); return; }
+                  const nodeData = files[fp]?.nodes.find((n) => n.id === nodeId);
+                  if (!nodeData) { setCtxMenu(null); return; }
+                  if (fp !== activeFilePath) {
+                    saveViewport(getViewport());
+                    setActiveFile(fp);
+                  }
+                  addAnnotation(nodeId, 'node', nodeData.position.x + 220, nodeData.position.y);
+                  setCtxMenu(null);
+                }}
+              >
+                Add comment
+              </div>
+              <div className="context-menu-separator" />
               <div
                 className="context-menu-item danger"
                 onClick={() => {

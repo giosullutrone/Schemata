@@ -44,6 +44,59 @@ export function generateMethodId(): string {
   return `m${nextMethodId++}`;
 }
 
+/** Parse the numeric suffix from an ID like "class-5" → 5, or return 0 */
+function parseIdSuffix(id: string): number {
+  const match = id.match(/-(\d+)$/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+/** Sync all ID counters to be above the highest existing IDs across all files */
+function syncIdCounters(files: Record<string, CodeCanvasFile>) {
+  let maxNode = 0, maxEdge = 0, maxAnnotation = 0, maxGroup = 0, maxProp = 0, maxMethod = 0;
+  for (const file of Object.values(files)) {
+    for (const node of file.nodes) {
+      if (node.id.startsWith('class-')) maxNode = Math.max(maxNode, parseIdSuffix(node.id));
+      else if (node.id.startsWith('annotation-')) maxAnnotation = Math.max(maxAnnotation, parseIdSuffix(node.id));
+      else if (node.id.startsWith('group-')) maxGroup = Math.max(maxGroup, parseIdSuffix(node.id));
+      if (node.type === 'classNode') {
+        const d = node.data as { properties?: { id?: string }[]; methods?: { id?: string }[] };
+        for (const p of d.properties ?? []) {
+          if (p.id?.startsWith('p')) maxProp = Math.max(maxProp, parseInt(p.id.slice(1), 10) || 0);
+        }
+        for (const m of d.methods ?? []) {
+          if (m.id?.startsWith('m')) maxMethod = Math.max(maxMethod, parseInt(m.id.slice(1), 10) || 0);
+        }
+      }
+    }
+    for (const edge of file.edges) {
+      if (edge.id.startsWith('edge-')) maxEdge = Math.max(maxEdge, parseIdSuffix(edge.id));
+    }
+  }
+  nextNodeId = maxNode + 1;
+  nextEdgeId = maxEdge + 1;
+  nextAnnotationId = maxAnnotation + 1;
+  nextGroupId = maxGroup + 1;
+  nextPropId = maxProp + 1;
+  nextMethodId = maxMethod + 1;
+}
+
+/** Deduplicate nodes by ID, keeping the last occurrence */
+function deduplicateNodes(file: CodeCanvasFile): CodeCanvasFile {
+  const seen = new Set<string>();
+  const unique: typeof file.nodes = [];
+  // Iterate in reverse so we keep the last occurrence, then reverse back
+  for (let i = file.nodes.length - 1; i >= 0; i--) {
+    const node = file.nodes[i];
+    if (!seen.has(node.id)) {
+      seen.add(node.id);
+      unique.push(node);
+    }
+  }
+  if (unique.length === file.nodes.length) return file; // no duplicates
+  unique.reverse();
+  return { ...file, nodes: unique };
+}
+
 interface UndoEntry {
   filePath: string;
   snapshot: CodeCanvasFile;
@@ -142,9 +195,12 @@ interface CanvasStore {
 
   // Folder operations
   openFolder: () => Promise<void>;
+  refreshFolder: () => Promise<void>;
   setActiveFile: (filePath: string) => void;
   createFile: (folderRelativePath: string, displayName: string) => Promise<void>;
   saveActiveFile: () => Promise<void>;
+  saveAllFiles: () => Promise<void>;
+  removeFile: (filePath: string) => Promise<void>;
 
   // Node operations
   addClassNode: (x: number, y: number) => void;
@@ -171,6 +227,11 @@ interface CanvasStore {
 
   // File name
   renameFile: (newName: string) => void;
+
+  // Status
+  _loading: boolean;
+  _error: string | null;
+  clearError: () => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -183,34 +244,48 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   _redoStack: [],
   lastSavedFiles: {},
   _dirtyFiles: {},
+  _loading: false,
+  _error: null,
   sidebarOpen: (() => {
     const stored = localStorage.getItem('codecanvas-sidebar-open');
     return stored !== null ? stored === 'true' : true;
   })(),
 
   undo: () => {
-    const { _undoStack, files } = get();
+    const { _undoStack, files, lastSavedFiles, _dirtyFiles } = get();
     if (_undoStack.length === 0) return;
     const entry = _undoStack[_undoStack.length - 1];
     const currentFile = files[entry.filePath];
     if (!currentFile) return;
+    const savedFile = lastSavedFiles[entry.filePath];
+    const isClean = savedFile && JSON.stringify(savedFile) === JSON.stringify(entry.snapshot);
+    const nextDirty = { ..._dirtyFiles };
+    if (isClean) delete nextDirty[entry.filePath];
+    else nextDirty[entry.filePath] = true;
     set({
       _undoStack: _undoStack.slice(0, -1),
       _redoStack: [...get()._redoStack, { filePath: entry.filePath, snapshot: currentFile }],
       files: { ...files, [entry.filePath]: entry.snapshot },
+      _dirtyFiles: nextDirty,
     });
   },
 
   redo: () => {
-    const { _redoStack, files } = get();
+    const { _redoStack, files, lastSavedFiles, _dirtyFiles } = get();
     if (_redoStack.length === 0) return;
     const entry = _redoStack[_redoStack.length - 1];
     const currentFile = files[entry.filePath];
     if (!currentFile) return;
+    const savedFile = lastSavedFiles[entry.filePath];
+    const isClean = savedFile && JSON.stringify(savedFile) === JSON.stringify(entry.snapshot);
+    const nextDirty = { ..._dirtyFiles };
+    if (isClean) delete nextDirty[entry.filePath];
+    else nextDirty[entry.filePath] = true;
     set({
       _redoStack: _redoStack.slice(0, -1),
       _undoStack: [...get()._undoStack, { filePath: entry.filePath, snapshot: currentFile }],
       files: { ...files, [entry.filePath]: entry.snapshot },
+      _dirtyFiles: nextDirty,
     });
   },
 
@@ -231,35 +306,86 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       _redoStack: [],
       lastSavedFiles: {},
       _dirtyFiles: {},
+      _loading: false,
+      _error: null,
       sidebarOpen: true,
     });
   },
 
   openFolder: async () => {
+    if (!('showDirectoryPicker' in window)) {
+      set({ _error: 'Your browser does not support folder access. Please use Chrome or Edge.' });
+      return;
+    }
     const dirHandle = await openFolderPicker();
     if (!dirHandle) return;
-    const scanned = await scanFolder(dirHandle);
-    const files: Record<string, CodeCanvasFile> = {};
-    const handles: Record<string, FileSystemFileHandle> = {};
-    const lastSaved: Record<string, CodeCanvasFile> = {};
-    for (const s of scanned) {
-      const migrated = migrateFile(s.file);
-      files[s.relativePath] = migrated;
-      handles[s.relativePath] = s.handle;
-      lastSaved[s.relativePath] = migrated;
+    set({ _loading: true, _error: null });
+    try {
+      const scanned = await scanFolder(dirHandle);
+      const files: Record<string, CodeCanvasFile> = {};
+      const handles: Record<string, FileSystemFileHandle> = {};
+      const lastSaved: Record<string, CodeCanvasFile> = {};
+      for (const s of scanned) {
+        const migrated = deduplicateNodes(migrateFile(s.file));
+        files[s.relativePath] = migrated;
+        handles[s.relativePath] = s.handle;
+        lastSaved[s.relativePath] = migrated;
+      }
+      syncIdCounters(files);
+      const firstPath = Object.keys(files)[0] ?? null;
+      set({
+        folderHandle: dirHandle,
+        folderName: dirHandle.name,
+        files,
+        fileHandles: handles,
+        lastSavedFiles: lastSaved,
+        _dirtyFiles: {},
+        activeFilePath: firstPath,
+        _undoStack: [],
+        _redoStack: [],
+        _loading: false,
+      });
+    } catch (err) {
+      set({ _loading: false, _error: `Failed to open folder: ${(err as Error).message}` });
     }
-    const firstPath = Object.keys(files)[0] ?? null;
-    set({
-      folderHandle: dirHandle,
-      folderName: dirHandle.name,
-      files,
-      fileHandles: handles,
-      lastSavedFiles: lastSaved,
-      _dirtyFiles: {},
-      activeFilePath: firstPath,
-      _undoStack: [],
-      _redoStack: [],
-    });
+  },
+
+  refreshFolder: async () => {
+    const { folderHandle, files, fileHandles, lastSavedFiles, _dirtyFiles, activeFilePath } = get();
+    if (!folderHandle) return;
+    set({ _loading: true, _error: null });
+    try {
+      const scanned = await scanFolder(folderHandle);
+      const nextFiles: Record<string, CodeCanvasFile> = {};
+      const nextHandles: Record<string, FileSystemFileHandle> = {};
+      const nextSaved: Record<string, CodeCanvasFile> = {};
+      const nextDirty: Record<string, boolean> = {};
+      for (const s of scanned) {
+        if (files[s.relativePath] && _dirtyFiles[s.relativePath]) {
+          nextFiles[s.relativePath] = files[s.relativePath];
+          nextHandles[s.relativePath] = fileHandles[s.relativePath] ?? s.handle;
+          nextSaved[s.relativePath] = lastSavedFiles[s.relativePath] ?? deduplicateNodes(migrateFile(s.file));
+          nextDirty[s.relativePath] = true;
+        } else {
+          const migrated = deduplicateNodes(migrateFile(s.file));
+          nextFiles[s.relativePath] = migrated;
+          nextHandles[s.relativePath] = s.handle;
+          nextSaved[s.relativePath] = migrated;
+        }
+      }
+      syncIdCounters(nextFiles);
+      const nextActive = nextFiles[activeFilePath ?? ''] ? activeFilePath : (Object.keys(nextFiles)[0] ?? null);
+      set({
+        files: nextFiles,
+        fileHandles: nextHandles,
+        lastSavedFiles: nextSaved,
+        _dirtyFiles: nextDirty,
+        activeFilePath: nextActive,
+        _loading: false,
+      });
+    } catch (err) {
+      set({ _loading: false, _error: `Failed to refresh folder: ${(err as Error).message}` });
+    }
   },
 
   setActiveFile: (filePath) => {
@@ -286,8 +412,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         lastSavedFiles: { ...lastSavedFiles, [result.relativePath]: result.file },
         activeFilePath: result.relativePath,
       });
-    } catch {
-      // Failed to create file on disk
+    } catch (err) {
+      set({ _error: `Failed to create file: ${(err as Error).message}` });
     }
   },
 
@@ -297,11 +423,88 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const file = files[activeFilePath];
     const handle = fileHandles[activeFilePath];
     if (!file || !handle) return;
-    await writeToHandle(handle, file);
-    const { _dirtyFiles } = get();
+    try {
+      await writeToHandle(handle, file);
+      const { _dirtyFiles, lastSavedFiles } = get();
+      const nextDirty = { ..._dirtyFiles };
+      delete nextDirty[activeFilePath];
+      set({
+        _dirtyFiles: nextDirty,
+        lastSavedFiles: { ...lastSavedFiles, [activeFilePath]: JSON.parse(JSON.stringify(file)) },
+      });
+    } catch (err) {
+      set({ _error: `Save failed: ${(err as Error).message}` });
+    }
+  },
+
+  saveAllFiles: async () => {
+    const { files, fileHandles, _dirtyFiles } = get();
+    const dirtyPaths = Object.keys(_dirtyFiles);
+    if (dirtyPaths.length === 0) return;
+    const errors: string[] = [];
     const nextDirty = { ..._dirtyFiles };
-    delete nextDirty[activeFilePath];
-    set({ _dirtyFiles: nextDirty });
+    const nextSaved = { ...get().lastSavedFiles };
+    for (const fp of dirtyPaths) {
+      const file = files[fp];
+      const handle = fileHandles[fp];
+      if (!file || !handle) continue;
+      try {
+        await writeToHandle(handle, file);
+        delete nextDirty[fp];
+        nextSaved[fp] = JSON.parse(JSON.stringify(file));
+      } catch (err) {
+        errors.push(`${fp}: ${(err as Error).message}`);
+      }
+    }
+    set({ _dirtyFiles: nextDirty, lastSavedFiles: nextSaved });
+    if (errors.length > 0) {
+      set({ _error: `Save errors: ${errors.join('; ')}` });
+    }
+  },
+
+  removeFile: async (filePath) => {
+    const { folderHandle, files, fileHandles, lastSavedFiles, _dirtyFiles, activeFilePath } = get();
+    if (!files[filePath]) return;
+
+    // Delete from disk if we have the handles
+    if (folderHandle && fileHandles[filePath]) {
+      try {
+        // Walk to the parent directory and remove the file entry
+        const parts = filePath.split('/');
+        const fileName = parts.pop()!;
+        let parentDir = folderHandle;
+        for (const part of parts) {
+          parentDir = await parentDir.getDirectoryHandle(part);
+        }
+        await parentDir.removeEntry(fileName);
+      } catch (err) {
+        set({ _error: `Could not delete from disk: ${(err as Error).message}` });
+      }
+    }
+
+    const nextFiles = { ...files };
+    delete nextFiles[filePath];
+    const nextHandles = { ...fileHandles };
+    delete nextHandles[filePath];
+    const nextSaved = { ...lastSavedFiles };
+    delete nextSaved[filePath];
+    const nextDirty = { ..._dirtyFiles };
+    delete nextDirty[filePath];
+
+    // If the removed file was active, switch to another file
+    let nextActive = activeFilePath;
+    if (activeFilePath === filePath) {
+      const remaining = Object.keys(nextFiles);
+      nextActive = remaining.length > 0 ? remaining[0] : null;
+    }
+
+    set({
+      files: nextFiles,
+      fileHandles: nextHandles,
+      lastSavedFiles: nextSaved,
+      _dirtyFiles: nextDirty,
+      activeFilePath: nextActive,
+    });
   },
 
   addClassNode: (x, y) => {
@@ -552,6 +755,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     localStorage.setItem('codecanvas-sidebar-open', String(open));
     set({ sidebarOpen: open });
   },
+
+  clearError: () => set({ _error: null }),
 
   renameFile: (newName) => {
     pushUndo(get, set);

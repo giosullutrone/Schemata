@@ -19,6 +19,7 @@ interface FileSystemDirectoryHandle {
   values(): AsyncIterableIterator<FileSystemFileHandle | FileSystemDirectoryHandle>;
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<FileSystemDirectoryHandle>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
+  removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
 }
 
 interface Window {

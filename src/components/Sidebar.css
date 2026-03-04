@@ -13,11 +13,6 @@
   flex-shrink: 0;
 }
 
-.sidebar.collapsed {
-  width: 0;
-  border-right: none;
-}
-
 .sidebar-toggle-tab {
   position: absolute;
   left: 0;
@@ -77,19 +72,6 @@
   cursor: default;
 }
 
-.sidebar-project-name-input {
-  flex: 1;
-  font-weight: 600;
-  font-size: 13px;
-  border: 1px solid var(--border-primary);
-  border-radius: 3px;
-  padding: 1px 4px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  outline: none;
-  min-width: 0;
-}
-
 .sidebar-save-btn {
   background: none;
   border: none;
@@ -139,28 +121,6 @@
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
-}
-
-.sidebar-canvas-row {
-  display: flex;
-  align-items: center;
-  padding: 5px 10px;
-  cursor: pointer;
-  gap: 4px;
-  user-select: none;
-}
-
-.sidebar-canvas-row:hover {
-  background: var(--bg-hover);
-}
-
-.sidebar-canvas-row.active {
-  background: var(--bg-active);
-  font-weight: 600;
-}
-
-.sidebar-canvas-row.drag-over {
-  background: var(--bg-active);
 }
 
 .sidebar-canvas-chevron {
@@ -302,12 +262,6 @@
   background: var(--text-muted);
   margin-left: 5px;
   vertical-align: middle;
-}
-
-.sidebar-drop-indicator {
-  height: 2px;
-  background: var(--guide-color);
-  margin: 0 10px;
 }
 
 /* --- Sidebar context menu --- */

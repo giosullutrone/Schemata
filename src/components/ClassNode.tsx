@@ -30,10 +30,11 @@ function InlineEdit({
   onCommit,
 }: {
   value: string;
-  onCommit: (newValue: string) => void;
+  onCommit: (newValue: string) => boolean | void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [error, setError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -44,12 +45,19 @@ function InlineEdit({
   }, [editing]);
 
   const commit = useCallback(() => {
-    setEditing(false);
     if (draft.trim() !== '' && draft !== value) {
-      onCommit(draft.trim());
+      const result = onCommit(draft.trim());
+      if (result === false) {
+        setDraft(value);
+        setEditing(false);
+        setError(true);
+        setTimeout(() => setError(false), 1500);
+        return;
+      }
     } else {
       setDraft(value);
     }
+    setEditing(false);
   }, [draft, value, onCommit]);
 
   if (editing) {
@@ -73,6 +81,7 @@ function InlineEdit({
 
   return (
     <span
+      className={error ? 'class-node-inline-error' : undefined}
       onDoubleClick={() => {
         setDraft(value);
         setEditing(true);
@@ -129,14 +138,13 @@ function PropertyRow({
         value={displayText}
         onCommit={(val) => {
           const match = val.match(/^([+\-#])\s*(\w+):\s*(.+)$/);
-          if (match) {
-            const symToVis: Record<string, Visibility> = { '+': 'public', '-': 'private', '#': 'protected' };
-            updateProperty({
-              visibility: symToVis[match[1]] ?? property.visibility,
-              name: match[2],
-              type: match[3].trim(),
-            });
-          }
+          if (!match) return false;
+          const symToVis: Record<string, Visibility> = { '+': 'public', '-': 'private', '#': 'protected' };
+          updateProperty({
+            visibility: symToVis[match[1]] ?? property.visibility,
+            name: match[2],
+            type: match[3].trim(),
+          });
         }}
       />
       <span className="class-node-row-remove" onClick={removeProperty}>
@@ -193,22 +201,21 @@ function MethodRow({
         value={displayText}
         onCommit={(val) => {
           const match = val.match(/^([+\-#])\s*(\w+)\(([^)]*)\):\s*(.+)$/);
-          if (match) {
-            const symToVis: Record<string, Visibility> = { '+': 'public', '-': 'private', '#': 'protected' };
-            const paramStr = match[3].trim();
-            const parameters = paramStr
-              ? paramStr.split(',').map((seg) => {
-                  const parts = seg.trim().split(':');
-                  return { name: parts[0].trim(), type: (parts[1] ?? '').trim() };
-                })
-              : [];
-            updateMethod({
-              visibility: symToVis[match[1]] ?? method.visibility,
-              name: match[2],
-              parameters,
-              returnType: match[4].trim(),
-            });
-          }
+          if (!match) return false;
+          const symToVis: Record<string, Visibility> = { '+': 'public', '-': 'private', '#': 'protected' };
+          const paramStr = match[3].trim();
+          const parameters = paramStr
+            ? paramStr.split(',').map((seg) => {
+                const parts = seg.trim().split(':');
+                return { name: parts[0].trim(), type: (parts[1] ?? '').trim() };
+              })
+            : [];
+          updateMethod({
+            visibility: symToVis[match[1]] ?? method.visibility,
+            name: match[2],
+            parameters,
+            returnType: match[4].trim(),
+          });
         }}
       />
       <span className="class-node-row-remove" onClick={removeMethod}>
