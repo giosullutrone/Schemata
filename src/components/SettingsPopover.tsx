@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import type { ColorModeSetting, SnapMode } from '../constants';
 import './SettingsPopover.css';
-
-type ColorModeSetting = 'light' | 'dark' | 'system';
-type SnapMode = 'grid' | 'guides' | 'none';
 
 interface SettingsPopoverProps {
   colorMode: ColorModeSetting;

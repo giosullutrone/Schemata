@@ -96,15 +96,10 @@ export interface ClassEdgeSchema {
   data: ClassEdgeData;
 }
 
-export interface CanvasData {
+export interface CodeCanvasFile {
+  version: string;
   name: string;
   nodes: CanvasNodeSchema[];
   edges: ClassEdgeSchema[];
   viewport?: { x: number; y: number; zoom: number };
-}
-
-export interface CodeCanvasFile {
-  version: string;
-  name: string;
-  canvases: Record<string, CanvasData>;
 }

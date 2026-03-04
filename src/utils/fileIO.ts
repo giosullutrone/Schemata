@@ -5,8 +5,25 @@ export function serializeFile(file: CodeCanvasFile): string {
 }
 
 export function deserializeFile(json: string): CodeCanvasFile {
-  return JSON.parse(json) as CodeCanvasFile;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw: any = JSON.parse(json);
+  // Migrate old multi-canvas format to flat single-canvas format
+  if (raw.canvases && typeof raw.canvases === 'object' && !Array.isArray(raw.nodes)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const firstCanvas = Object.values(raw.canvases)[0] as any;
+    return {
+      version: raw.version ?? '1.0',
+      name: raw.name ?? 'Untitled',
+      nodes: firstCanvas?.nodes ?? [],
+      edges: firstCanvas?.edges ?? [],
+      viewport: firstCanvas?.viewport,
+    };
+  }
+  return raw as CodeCanvasFile;
 }
+
+const VALID_NODE_TYPES = new Set(['classNode', 'annotationNode', 'groupNode']);
+const VALID_EDGE_TYPE = 'uml';
 
 export function validateFile(file: CodeCanvasFile): string[] {
   const errors: string[] = [];
@@ -17,44 +34,39 @@ export function validateFile(file: CodeCanvasFile): string[] {
   if (!file.name) {
     errors.push('Missing "name" field');
   }
-  if (!file.canvases || typeof file.canvases !== 'object') {
-    errors.push('Missing or invalid "canvases" field');
-    return errors;
+  if (!Array.isArray(file.nodes)) {
+    errors.push('Missing "nodes" array');
+  } else {
+    for (let i = 0; i < file.nodes.length; i++) {
+      const node = file.nodes[i];
+      if (!node || typeof node !== 'object') {
+        errors.push(`nodes[${i}]: not an object`);
+        continue;
+      }
+      if (!node.id) errors.push(`nodes[${i}]: missing "id"`);
+      if (!VALID_NODE_TYPES.has(node.type)) errors.push(`nodes[${i}]: invalid type "${node.type}"`);
+      if (!node.position || typeof node.position.x !== 'number' || typeof node.position.y !== 'number') {
+        errors.push(`nodes[${i}]: missing or invalid "position"`);
+      }
+    }
   }
-
-  for (const [canvasId, canvas] of Object.entries(file.canvases)) {
-    if (!canvas.name) {
-      errors.push(`Canvas "${canvasId}" missing "name" field`);
-    }
-    if (!Array.isArray(canvas.nodes)) {
-      errors.push(`Canvas "${canvasId}" missing "nodes" array`);
-    }
-    if (!Array.isArray(canvas.edges)) {
-      errors.push(`Canvas "${canvasId}" missing "edges" array`);
+  if (!Array.isArray(file.edges)) {
+    errors.push('Missing "edges" array');
+  } else {
+    for (let i = 0; i < file.edges.length; i++) {
+      const edge = file.edges[i];
+      if (!edge || typeof edge !== 'object') {
+        errors.push(`edges[${i}]: not an object`);
+        continue;
+      }
+      if (!edge.id) errors.push(`edges[${i}]: missing "id"`);
+      if (!edge.source) errors.push(`edges[${i}]: missing "source"`);
+      if (!edge.target) errors.push(`edges[${i}]: missing "target"`);
+      if (edge.type !== VALID_EDGE_TYPE) errors.push(`edges[${i}]: invalid type "${edge.type}"`);
     }
   }
 
   return errors;
-}
-
-export async function saveToFileSystem(file: CodeCanvasFile): Promise<FileSystemFileHandle | null> {
-  if (!('showSaveFilePicker' in window)) {
-    downloadAsFile(file);
-    return null;
-  }
-  const handle = await window.showSaveFilePicker({
-    suggestedName: `${file.name}.codecanvas.json`,
-    types: [
-      {
-        description: 'CodeCanvas files',
-        accept: { 'application/json': ['.codecanvas.json'] },
-      },
-    ],
-  });
-  const writable = await handle.createWritable();
-  await writable.write(serializeFile(file));
-  await writable.close();
-  return handle;
 }
 
 export async function writeToHandle(handle: FileSystemFileHandle, file: CodeCanvasFile): Promise<void> {
@@ -63,30 +75,66 @@ export async function writeToHandle(handle: FileSystemFileHandle, file: CodeCanv
   await writable.close();
 }
 
-export async function loadFromFileSystem(): Promise<{ file: CodeCanvasFile; handle: FileSystemFileHandle } | null> {
-  if (!('showOpenFilePicker' in window)) {
-    return null;
-  }
-  const [handle] = await window.showOpenFilePicker({
-    types: [
-      {
-        description: 'CodeCanvas files',
-        accept: { 'application/json': ['.codecanvas.json', '.json'] },
-      },
-    ],
-  });
-  const fileObj = await handle.getFile();
-  const text = await fileObj.text();
-  const parsed = deserializeFile(text);
-  return { file: parsed, handle };
+export interface ScannedFile {
+  relativePath: string;
+  file: CodeCanvasFile;
+  handle: FileSystemFileHandle;
 }
 
-function downloadAsFile(file: CodeCanvasFile): void {
-  const blob = new Blob([serializeFile(file)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${file.name}.codecanvas.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+export async function openFolder(): Promise<FileSystemDirectoryHandle | null> {
+  if (!('showDirectoryPicker' in window)) return null;
+  try {
+    return await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (err) {
+    if ((err as DOMException).name === 'AbortError') return null;
+    throw err;
+  }
+}
+
+export async function scanFolder(
+  dirHandle: FileSystemDirectoryHandle,
+  basePath: string = '',
+): Promise<ScannedFile[]> {
+  const results: ScannedFile[] = [];
+  for await (const entry of dirHandle.values()) {
+    const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+    if (entry.kind === 'directory') {
+      const subResults = await scanFolder(entry as FileSystemDirectoryHandle, entryPath);
+      results.push(...subResults);
+    } else if (entry.kind === 'file' && entry.name.endsWith('.codecanvas.json')) {
+      const fileHandle = entry as FileSystemFileHandle;
+      try {
+        const fileObj = await fileHandle.getFile();
+        const text = await fileObj.text();
+        const parsed = deserializeFile(text);
+        const errors = validateFile(parsed);
+        if (errors.length === 0) {
+          results.push({ relativePath: entryPath, file: parsed, handle: fileHandle });
+        }
+      } catch {
+        // Skip malformed files
+      }
+    }
+  }
+  results.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  return results;
+}
+
+export async function createFileInFolder(
+  rootDirHandle: FileSystemDirectoryHandle,
+  subPath: string,
+  fileName: string,
+  file: CodeCanvasFile,
+): Promise<ScannedFile | null> {
+  let targetDir = rootDirHandle;
+  if (subPath) {
+    const parts = subPath.split('/');
+    for (const part of parts) {
+      targetDir = await targetDir.getDirectoryHandle(part);
+    }
+  }
+  const handle = await targetDir.getFileHandle(fileName, { create: true });
+  await writeToHandle(handle, file);
+  const relativePath = subPath ? `${subPath}/${fileName}` : fileName;
+  return { relativePath, file, handle };
 }

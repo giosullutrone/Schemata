@@ -1,10 +1,9 @@
-import { useState, useCallback, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
-import { saveToFileSystem, loadFromFileSystem, writeToHandle } from '../utils/fileIO';
+import { buildFolderTree, type TreeNode, type FolderTreeNode, type FileTreeNode } from '../utils/folderTree';
+import { COLORS } from '../constants';
 import './Sidebar.css';
-
-const COLORS = ['#4A90D9', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#34495E', '#E67E22'];
 
 function getNodeDisplayName(node: { type?: string; data: Record<string, unknown> }): string {
   if (node.type === 'classNode') return (node.data.name as string) || 'Class';
@@ -21,164 +20,135 @@ function getNodeBadge(type?: string): { label: string; className: string } {
 }
 
 export default function Sidebar() {
-  const file = useCanvasStore((s) => s.file);
-  const currentCanvasId = useCanvasStore((s) => s.currentCanvasId);
+  const files = useCanvasStore((s) => s.files);
+  const activeFilePath = useCanvasStore((s) => s.activeFilePath);
+  const folderName = useCanvasStore((s) => s.folderName);
   const sidebarOpen = useCanvasStore((s) => s.sidebarOpen);
+  const dirtyFiles = useCanvasStore((s) => s._dirtyFiles);
+
   const setSidebarOpen = useCanvasStore((s) => s.setSidebarOpen);
-  const setCurrentCanvas = useCanvasStore((s) => s.setCurrentCanvas);
-  const addCanvas = useCanvasStore((s) => s.addCanvas);
-  const removeCanvas = useCanvasStore((s) => s.removeCanvas);
-  const renameCanvas = useCanvasStore((s) => s.renameCanvas);
+  const setActiveFile = useCanvasStore((s) => s.setActiveFile);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const moveNodeToCanvas = useCanvasStore((s) => s.moveNodeToCanvas);
-  const reorderCanvases = useCanvasStore((s) => s.reorderCanvases);
-  const fileHandle = useCanvasStore((s) => s.fileHandle);
-  const setFileHandle = useCanvasStore((s) => s.setFileHandle);
-  const loadFile = useCanvasStore((s) => s.loadFile);
   const saveViewport = useCanvasStore((s) => s.saveViewport);
-  const lastSavedFile = useCanvasStore((s) => s.lastSavedFile);
-  const markSaved = useCanvasStore((s) => s.markSaved);
+  const renameFile = useCanvasStore((s) => s.renameFile);
 
   const { getViewport, setCenter, setNodes } = useReactFlow();
 
-  const pushUndoSnapshot = useCanvasStore((s) => s.pushUndoSnapshot);
+  // Build folder tree from flat file map
+  const tree = useMemo(() => buildFolderTree(files), [files]);
 
-  // --- Project name editing ---
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(file.name);
-  const nameInputRef = useRef<HTMLInputElement>(null);
+  // --- Collapsed state ---
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
+  const toggleCollapse = useCallback((path: string) => {
+    setCollapsedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
 
-  // Sync nameDraft when file is loaded externally (drag-drop, Open button)
+  // --- New file creation in folder ---
+  const [creatingFileInFolder, setCreatingFileInFolder] = useState<string | null>(null);
+  const [newFileDraft, setNewFileDraft] = useState('');
+  const newFileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
-    setNameDraft(file.name);
-  }, [file.name]);
+    if (creatingFileInFolder !== null && newFileInputRef.current) newFileInputRef.current.focus();
+  }, [creatingFileInFolder]);
+
+  const commitNewFile = useCallback(async () => {
+    const folderPath = creatingFileInFolder;
+    setCreatingFileInFolder(null);
+    const name = newFileDraft.trim();
+    if (!name || folderPath === null) return;
+    const createFile = useCanvasStore.getState().createFile;
+    await createFile(folderPath, name);
+    setNewFileDraft('');
+  }, [creatingFileInFolder, newFileDraft]);
+
+  // --- File name editing ---
+  const [editingFileName, setEditingFileName] = useState(false);
+  const [fileNameDraft, setFileNameDraft] = useState('');
+  const fileNameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (editingName && nameInputRef.current) nameInputRef.current.focus();
-  }, [editingName]);
+    if (editingFileName && fileNameInputRef.current) fileNameInputRef.current.focus();
+  }, [editingFileName]);
 
-  const commitName = useCallback(() => {
-    setEditingName(false);
-    const trimmed = nameDraft.trim();
-    if (trimmed && trimmed !== file.name) {
-      pushUndoSnapshot();
-      useCanvasStore.setState((state) => ({
-        file: { ...state.file, name: trimmed },
-      }));
+  const commitFileNameEdit = useCallback(async () => {
+    setEditingFileName(false);
+    const trimmed = fileNameDraft.trim();
+    if (trimmed && activeFilePath) {
+      const currentName = files[activeFilePath]?.name;
+      if (trimmed !== currentName) {
+        renameFile(trimmed);
+        try { await useCanvasStore.getState().saveActiveFile(); } catch { /* ignore */ }
+      }
     }
-  }, [nameDraft, file.name, pushUndoSnapshot]);
+  }, [fileNameDraft, activeFilePath, files, renameFile]);
 
-  // --- New canvas inline creation ---
-  const [creatingCanvas, setCreatingCanvas] = useState(false);
-  const [newCanvasDraft, setNewCanvasDraft] = useState('');
-  const newCanvasInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (creatingCanvas && newCanvasInputRef.current) newCanvasInputRef.current.focus();
-  }, [creatingCanvas]);
-
-  const commitNewCanvas = useCallback(() => {
-    setCreatingCanvas(false);
-    const name = newCanvasDraft.trim();
-    if (!name) return;
-    let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const canvases = useCanvasStore.getState().file.canvases;
-    let suffix = 1;
-    const baseId = id;
-    while (canvases[id]) {
-      id = `${baseId}-${suffix++}`;
-    }
-    addCanvas(id, name);
-    saveViewport(getViewport());
-    setCurrentCanvas(id);
-    setNewCanvasDraft('');
-  }, [newCanvasDraft, addCanvas, setCurrentCanvas, saveViewport, getViewport]);
-
-  // --- Canvas renaming ---
-  const [renamingCanvasId, setRenamingCanvasId] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const renameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (renamingCanvasId && renameInputRef.current) renameInputRef.current.focus();
-  }, [renamingCanvasId]);
-
-  const commitRename = useCallback(() => {
-    if (renamingCanvasId && renameDraft.trim()) {
-      renameCanvas(renamingCanvasId, renameDraft.trim());
-    }
-    setRenamingCanvasId(null);
-  }, [renamingCanvasId, renameDraft, renameCanvas]);
-
-  // --- File operations ---
+  // --- Save ---
   const handleSave = useCallback(async () => {
     try {
-      const currentFile = useCanvasStore.getState().file;
-      if (fileHandle) {
-        await writeToHandle(fileHandle, currentFile);
-        markSaved();
-      } else {
-        const handle = await saveToFileSystem(currentFile);
-        if (handle) {
-          setFileHandle(handle);
-          markSaved();
-        }
-      }
+      await useCanvasStore.getState().saveActiveFile();
     } catch (err) {
       if ((err as DOMException).name !== 'AbortError') {
         console.error('Save failed:', err);
       }
     }
-  }, [fileHandle, setFileHandle, markSaved]);
+  }, []);
 
-  const handleLoad = useCallback(async () => {
-    try {
-      const result = await loadFromFileSystem();
-      if (result) {
-        loadFile(result.file);
-        setFileHandle(result.handle);
-      }
-    } catch (err) {
-      if ((err as DOMException).name !== 'AbortError') {
-        console.error('Load failed:', err);
-      }
-    }
-  }, [loadFile, setFileHandle]);
+  // --- Open folder ---
+  const handleOpenFolder = useCallback(async () => {
+    await useCanvasStore.getState().openFolder();
+  }, []);
 
-  // --- Canvas switching ---
-  const handleCanvasClick = useCallback(
-    (id: string) => {
-      if (id === currentCanvasId) return;
+  // --- File click: activate file ---
+  const handleFileClick = useCallback(
+    (filePath: string) => {
+      if (filePath === activeFilePath) return;
       saveViewport(getViewport());
-      setCurrentCanvas(id);
+      setActiveFile(filePath);
     },
-    [currentCanvasId, setCurrentCanvas, saveViewport, getViewport]
+    [activeFilePath, setActiveFile, saveViewport, getViewport]
   );
 
   // --- Node click: pan + select ---
   const handleNodeClick = useCallback(
-    (nodeId: string) => {
-      const canvas = useCanvasStore.getState().file.canvases[currentCanvasId];
-      if (!canvas) return;
-      const node = canvas.nodes.find((n) => n.id === nodeId);
+    (nodeId: string, filePath?: string) => {
+      const store = useCanvasStore.getState();
+      const fp = filePath ?? store.activeFilePath;
+      if (!fp) return;
+      const af = store.files[fp];
+      if (!af) return;
+      const node = af.nodes.find((n) => n.id === nodeId);
       if (!node) return;
-      // Pan to node center (approximate 200x150 for measured size)
-      setCenter(node.position.x + 100, node.position.y + 75, { duration: 300 });
-      // Select only this node
-      setNodes((nodes) =>
-        nodes.map((n) => ({ ...n, selected: n.id === nodeId }))
-      );
+      // Use a short delay when switching files so the canvas has time to render
+      const pan = () => {
+        setCenter(node.position.x + 100, node.position.y + 75, { duration: 300 });
+        setNodes((nodes) =>
+          nodes.map((n) => ({ ...n, selected: n.id === nodeId }))
+        );
+      };
+      if (fp !== store.activeFilePath) {
+        // File was just switched — wait for canvas to mount
+        setTimeout(pan, 50);
+      } else {
+        pan();
+      }
     },
-    [currentCanvasId, setCenter, setNodes]
+    [setCenter, setNodes]
   );
 
-  // --- Sidebar context menu ---
+  // --- Context menu ---
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
-    kind: 'canvas' | 'node';
-    canvasId: string;
+    kind: 'folder' | 'file' | 'node';
+    folderPath?: string;
+    filePath?: string;
     nodeId?: string;
     nodeType?: string;
   } | null>(null);
@@ -195,146 +165,153 @@ export default function Sidebar() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [ctxMenu]);
 
-  const handleCanvasContextMenu = useCallback(
-    (e: React.MouseEvent, canvasId: string) => {
-      e.preventDefault();
-      setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'canvas', canvasId });
-    },
-    []
-  );
+  // --- Active file data ---
+  const activeFile = activeFilePath ? files[activeFilePath] ?? null : null;
 
-  const handleNodeContextMenu = useCallback(
-    (e: React.MouseEvent, canvasId: string, nodeId: string, nodeType?: string) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'node', canvasId, nodeId, nodeType });
-    },
-    []
-  );
+  // --- Render helpers ---
+  function renderTreeNodes(nodes: TreeNode[], depth: number) {
+    return nodes.map((node) => {
+      if (node.kind === 'folder') return renderFolder(node, depth);
+      return renderFileNode(node, depth);
+    });
+  }
 
-  // --- DnD state ---
-  // State drives rendering (highlights, indicators); ref gives the drop handler
-  // synchronous access to the latest values regardless of React batching.
-  const [dragType, setDragType] = useState<'canvas' | 'node' | null>(null);
-  const [dragCanvasId, setDragCanvasId] = useState<string | null>(null);
-  const [dragNodeId, setDragNodeId] = useState<string | null>(null);
-  const [dropTargetCanvasId, setDropTargetCanvasId] = useState<string | null>(null);
-  const [dropInsertIndex, setDropInsertIndex] = useState<number | null>(null);
-  const dndRef = useRef({
-    dragType: null as 'canvas' | 'node' | null,
-    dragCanvasId: null as string | null,
-    dragNodeId: null as string | null,
-    dropTargetCanvasId: null as string | null,
-    dropInsertIndex: null as number | null,
-  });
+  function renderFolder(folder: FolderTreeNode, depth: number) {
+    const collapsed = collapsedPaths.has(folder.path);
+    return (
+      <div key={`folder:${folder.path}`}>
+        <div
+          className="sidebar-folder-row"
+          style={{ paddingLeft: 10 + depth * 16 }}
+          onClick={() => toggleCollapse(folder.path)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: folder.path });
+          }}
+        >
+          <span className="sidebar-canvas-chevron">{collapsed ? '\u25B6' : '\u25BC'}</span>
+          <span className="sidebar-folder-icon">{collapsed ? '\uD83D\uDCC1' : '\uD83D\uDCC2'}</span>
+          <span className="sidebar-canvas-name">{folder.name}</span>
+        </div>
+        {!collapsed && renderTreeNodes(folder.children, depth + 1)}
+        {/* Inline input for new file creation */}
+        {creatingFileInFolder === folder.path && (
+          <div className="sidebar-file-row" style={{ paddingLeft: 10 + (depth + 1) * 16 }}>
+            <input
+              ref={newFileInputRef}
+              className="sidebar-canvas-name-input"
+              value={newFileDraft}
+              placeholder="File name..."
+              onChange={(e) => setNewFileDraft(e.target.value)}
+              onBlur={() => { if (newFileDraft.trim()) commitNewFile(); else setCreatingFileInFolder(null); }}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter') commitNewFile();
+                if (e.key === 'Escape') setCreatingFileInFolder(null);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
-  const canvasIds = Object.keys(file.canvases);
+  function renderFileNode(file: FileTreeNode, depth: number) {
+    const isActiveFile = file.relativePath === activeFilePath;
+    const fileData = files[file.relativePath];
+    if (!fileData) return null;
+    const isDirty = !!dirtyFiles[file.relativePath];
+    const collapsed = collapsedPaths.has(file.relativePath);
+    const hasNodes = fileData.nodes.length > 0;
 
-  // Canvas drag
-  const handleCanvasDragStart = useCallback(
-    (e: React.DragEvent, canvasId: string) => {
-      setDragType('canvas');
-      setDragCanvasId(canvasId);
-      dndRef.current.dragType = 'canvas';
-      dndRef.current.dragCanvasId = canvasId;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', canvasId);
-    },
-    []
-  );
+    return (
+      <div key={`file:${file.relativePath}`}>
+        <div
+          className={`sidebar-file-row${isActiveFile ? ' active' : ''}`}
+          style={{ paddingLeft: 10 + depth * 16 }}
+          onClick={() => handleFileClick(file.relativePath)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'file', filePath: file.relativePath });
+          }}
+        >
+          <span
+            className={`sidebar-canvas-chevron${hasNodes ? ' clickable' : ''}`}
+            onClick={(e) => {
+              if (hasNodes) {
+                e.stopPropagation();
+                toggleCollapse(file.relativePath);
+              }
+            }}
+          >
+            {hasNodes ? (collapsed ? '\u25B6' : '\u25BC') : ''}
+          </span>
+          <span className="sidebar-file-icon">{'\uD83D\uDCC4'}</span>
+          {/* Show editable name if this is the active file and we're editing */}
+          {isActiveFile && editingFileName ? (
+            <input
+              ref={fileNameInputRef}
+              className="sidebar-canvas-name-input"
+              value={fileNameDraft}
+              onChange={(e) => setFileNameDraft(e.target.value)}
+              onBlur={commitFileNameEdit}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter') commitFileNameEdit();
+                if (e.key === 'Escape') setEditingFileName(false);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className="sidebar-canvas-name">
+              {file.name}
+              {isDirty && <span className="sidebar-dirty-dot" />}
+            </span>
+          )}
+        </div>
+        {/* Node children — for any expanded file */}
+        {!collapsed && hasNodes &&
+          fileData.nodes.map((node) => {
+            const badge = getNodeBadge(node.type);
+            const nodeColor = node.data.color as string | undefined;
+            const rowStyle: React.CSSProperties = {
+              paddingLeft: 10 + (depth + 1) * 16,
+              ...(nodeColor ? { background: `${nodeColor}18` } : {}),
+            };
+            return (
+              <div
+                key={node.id}
+                className="sidebar-node-row"
+                style={rowStyle}
+                onClick={() => {
+                  // Switch to the file first if not active, then pan to node
+                  if (!isActiveFile) {
+                    saveViewport(getViewport());
+                    setActiveFile(file.relativePath);
+                  }
+                  handleNodeClick(node.id, file.relativePath);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCtxMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    kind: 'node',
+                    filePath: file.relativePath,
+                    nodeId: node.id,
+                    nodeType: node.type,
+                  });
+                }}
+              >
+                <span className="sidebar-node-name">{getNodeDisplayName(node)}</span>
+                <span className={`sidebar-node-badge ${badge.className}`}>{badge.label}</span>
+              </div>
+            );
+          })}
+      </div>
+    );
+  }
 
-  const handleCanvasDragOver = useCallback(
-    (e: React.DragEvent, index: number) => {
-      const dt = dndRef.current.dragType;
-      if (dt !== 'canvas') {
-        // Node being dragged over a canvas row
-        if (dt === 'node') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = 'move';
-          const targetId = canvasIds[index];
-          setDropTargetCanvasId(targetId);
-          setDropInsertIndex(null);
-          dndRef.current.dropTargetCanvasId = targetId;
-          dndRef.current.dropInsertIndex = null;
-        }
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer.dropEffect = 'move';
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      const insertIdx = e.clientY < midY ? index : index + 1;
-      setDropInsertIndex(insertIdx);
-      setDropTargetCanvasId(null);
-      dndRef.current.dropInsertIndex = insertIdx;
-      dndRef.current.dropTargetCanvasId = null;
-    },
-    [canvasIds]
-  );
-
-  const handleCanvasDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      // Read from ref to avoid stale closure between dragover and drop
-      const d = dndRef.current;
-      if (d.dragType === 'canvas' && d.dragCanvasId && d.dropInsertIndex !== null) {
-        const newOrder = canvasIds.filter((id) => id !== d.dragCanvasId);
-        const adjustedIndex = d.dropInsertIndex > canvasIds.indexOf(d.dragCanvasId)
-          ? d.dropInsertIndex - 1
-          : d.dropInsertIndex;
-        newOrder.splice(adjustedIndex, 0, d.dragCanvasId);
-        reorderCanvases(newOrder);
-      }
-      if (d.dragType === 'node' && d.dragNodeId && d.dropTargetCanvasId) {
-        // Place node at the center of the target canvas's saved viewport
-        const targetCanvas = file.canvases[d.dropTargetCanvasId];
-        const vp = targetCanvas?.viewport || { x: 0, y: 0, zoom: 1 };
-        const container = document.querySelector('.react-flow')?.getBoundingClientRect();
-        const w = container?.width ?? window.innerWidth - 240;
-        const h = container?.height ?? window.innerHeight;
-        const centerX = (-vp.x + w / 2) / vp.zoom;
-        const centerY = (-vp.y + h / 2) / vp.zoom;
-        moveNodeToCanvas(d.dragNodeId, currentCanvasId, d.dropTargetCanvasId, { x: centerX, y: centerY });
-      }
-      dndRef.current = { dragType: null, dragCanvasId: null, dragNodeId: null, dropTargetCanvasId: null, dropInsertIndex: null };
-      setDragType(null);
-      setDragCanvasId(null);
-      setDragNodeId(null);
-      setDropTargetCanvasId(null);
-      setDropInsertIndex(null);
-    },
-    [canvasIds, reorderCanvases, moveNodeToCanvas, currentCanvasId, file.canvases]
-  );
-
-  const handleDragEnd = useCallback(() => {
-    dndRef.current = { dragType: null, dragCanvasId: null, dragNodeId: null, dropTargetCanvasId: null, dropInsertIndex: null };
-    setDragType(null);
-    setDragCanvasId(null);
-    setDragNodeId(null);
-    setDropTargetCanvasId(null);
-    setDropInsertIndex(null);
-  }, []);
-
-  // Node drag
-  const handleNodeDragStart = useCallback(
-    (e: React.DragEvent, nodeId: string) => {
-      e.stopPropagation();
-      setDragType('node');
-      setDragNodeId(nodeId);
-      dndRef.current.dragType = 'node';
-      dndRef.current.dragNodeId = nodeId;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', nodeId);
-    },
-    []
-  );
-
-  // --- Render ---
-  const currentCanvas = file.canvases[currentCanvasId];
-
+  // --- Collapsed sidebar ---
   if (!sidebarOpen) {
     return (
       <button className="sidebar-toggle-tab" onClick={() => setSidebarOpen(true)} title="Open sidebar (Ctrl+B)">
@@ -342,6 +319,9 @@ export default function Sidebar() {
       </button>
     );
   }
+
+  const hasFolderOpen = folderName !== null;
+  const hasFiles = Object.keys(files).length > 0;
 
   return (
     <>
@@ -351,27 +331,9 @@ export default function Sidebar() {
           <button className="sidebar-header-toggle" onClick={() => setSidebarOpen(false)} title="Close sidebar (Ctrl+B)">
             &#9776;
           </button>
-          {editingName ? (
-            <input
-              ref={nameInputRef}
-              className="sidebar-project-name-input"
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={commitName}
-              onKeyDown={(e: KeyboardEvent) => {
-                if (e.key === 'Enter') commitName();
-                if (e.key === 'Escape') setEditingName(false);
-              }}
-            />
-          ) : (
-            <span
-              className="sidebar-project-name"
-              onDoubleClick={() => { setNameDraft(file.name); setEditingName(true); }}
-              title={file.name}
-            >
-              {file.name}
-            </span>
-          )}
+          <span className="sidebar-project-name" title={folderName ?? 'No folder open'}>
+            {folderName ?? 'CodeCanvas'}
+          </span>
           <button className="sidebar-save-btn" onClick={handleSave} title="Save (Ctrl+S)">
             &#128190;
           </button>
@@ -381,145 +343,128 @@ export default function Sidebar() {
         <div className="sidebar-actions">
           <button
             className="sidebar-action-btn"
-            onClick={() => { setNewCanvasDraft(''); setCreatingCanvas(true); }}
+            disabled={!hasFolderOpen}
+            onClick={() => {
+              setNewFileDraft('');
+              setCreatingFileInFolder('');
+            }}
           >
-            + Canvas
+            + New File
           </button>
-          <button className="sidebar-action-btn" onClick={handleLoad}>
-            Open
+          <button className="sidebar-action-btn" onClick={handleOpenFolder}>
+            Open Folder
           </button>
         </div>
 
         {/* Tree */}
         <div className="sidebar-tree">
-          {creatingCanvas && (
-            <div className="sidebar-canvas-row">
-              <span className="sidebar-canvas-chevron">&#9654;</span>
+          {/* New file input at root level */}
+          {creatingFileInFolder === '' && (
+            <div className="sidebar-file-row" style={{ paddingLeft: 26 }}>
               <input
-                ref={newCanvasInputRef}
+                ref={newFileInputRef}
                 className="sidebar-canvas-name-input"
-                value={newCanvasDraft}
-                placeholder="Canvas name..."
-                onChange={(e) => setNewCanvasDraft(e.target.value)}
-                onBlur={() => { if (newCanvasDraft.trim()) commitNewCanvas(); else setCreatingCanvas(false); }}
+                value={newFileDraft}
+                placeholder="File name..."
+                onChange={(e) => setNewFileDraft(e.target.value)}
+                onBlur={() => {
+                  if (newFileDraft.trim()) commitNewFile();
+                  else setCreatingFileInFolder(null);
+                }}
                 onKeyDown={(e: KeyboardEvent) => {
-                  if (e.key === 'Enter') commitNewCanvas();
-                  if (e.key === 'Escape') setCreatingCanvas(false);
+                  if (e.key === 'Enter') commitNewFile();
+                  if (e.key === 'Escape') setCreatingFileInFolder(null);
                 }}
               />
             </div>
           )}
-          {canvasIds.map((canvasId, index) => {
-            const canvas = file.canvases[canvasId];
-            const isActive = canvasId === currentCanvasId;
-            const isDropTarget = dropTargetCanvasId === canvasId && dragType === 'node';
-            const isDirty = lastSavedFile
-              ? canvas !== lastSavedFile.canvases[canvasId]
-              : canvas.nodes.length > 0 || canvas.edges.length > 0;
 
-            return (
-              <div key={canvasId}>
-                {dropInsertIndex === index && dragType === 'canvas' && (
-                  <div className="sidebar-drop-indicator" />
-                )}
-                <div
-                  className={`sidebar-canvas-row${isActive ? ' active' : ''}${isDropTarget ? ' drag-over' : ''}`}
-                  onClick={() => handleCanvasClick(canvasId)}
-                  onContextMenu={(e) => handleCanvasContextMenu(e, canvasId)}
-                  draggable
-                  onDragStart={(e) => handleCanvasDragStart(e, canvasId)}
-                  onDragOver={(e) => handleCanvasDragOver(e, index)}
-                  onDrop={handleCanvasDrop}
-                  onDragEnd={handleDragEnd}
-                >
-                  <span className="sidebar-canvas-chevron">{isActive ? '\u25BC' : '\u25B6'}</span>
-                  {renamingCanvasId === canvasId ? (
-                    <input
-                      ref={renameInputRef}
-                      className="sidebar-canvas-name-input"
-                      value={renameDraft}
-                      onChange={(e) => setRenameDraft(e.target.value)}
-                      onBlur={commitRename}
-                      onKeyDown={(e: KeyboardEvent) => {
-                        if (e.key === 'Enter') commitRename();
-                        if (e.key === 'Escape') setRenamingCanvasId(null);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span className="sidebar-canvas-name">
-                      {canvas.name}
-                      {isDirty && <span className="sidebar-dirty-dot" />}
-                    </span>
-                  )}
-                </div>
-
-                {/* Node children -- only for active canvas */}
-                {isActive && currentCanvas && currentCanvas.nodes.map((node) => {
-                  const badge = getNodeBadge(node.type);
-                  const nodeColor = node.data.color as string | undefined;
-                  const rowStyle = nodeColor
-                    ? { background: `${nodeColor}18` }
-                    : undefined;
-                  return (
-                    <div
-                      key={node.id}
-                      className="sidebar-node-row"
-                      style={rowStyle}
-                      onClick={() => handleNodeClick(node.id)}
-                      onContextMenu={(e) => handleNodeContextMenu(e, canvasId, node.id, node.type)}
-                      draggable
-                      onDragStart={(e) => handleNodeDragStart(e, node.id)}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <span className="sidebar-node-name">{getNodeDisplayName(node)}</span>
-                      <span className={`sidebar-node-badge ${badge.className}`}>{badge.label}</span>
-                    </div>
-                  );
-                })}
-
-                {/* Drop indicator after last canvas */}
-                {dropInsertIndex === index + 1 && dragType === 'canvas' && index === canvasIds.length - 1 && (
-                  <div className="sidebar-drop-indicator" />
-                )}
+          {folderName ? (
+            <>
+              {/* Root folder row */}
+              <div
+                className="sidebar-folder-row"
+                style={{ paddingLeft: 10 }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: '' });
+                }}
+              >
+                <span className="sidebar-folder-icon">{'\uD83D\uDCC2'}</span>
+                <span className="sidebar-canvas-name" style={{ fontWeight: 600 }}>{folderName}</span>
               </div>
-            );
-          })}
+              {hasFiles ? (
+                renderTreeNodes(tree, 1)
+              ) : (
+                <div style={{ padding: '12px 10px 12px 26px', color: 'var(--text-muted)', fontSize: 11 }}>
+                  No canvas files found
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ padding: '16px 10px', color: 'var(--text-muted)', textAlign: 'center', fontSize: 11 }}>
+              Open a folder to get started
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Sidebar context menu */}
+      {/* Context menu */}
       {ctxMenu && (
         <div
           className="sidebar-context-menu"
           ref={ctxMenuRef}
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
         >
-          {ctxMenu.kind === 'canvas' && (
+          {ctxMenu.kind === 'folder' && (
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                setNewFileDraft('');
+                setCreatingFileInFolder(ctxMenu.folderPath ?? '');
+                setCtxMenu(null);
+              }}
+            >
+              New Canvas File
+            </div>
+          )}
+
+          {ctxMenu.kind === 'file' && ctxMenu.filePath && (
             <>
               <div
                 className="context-menu-item"
                 onClick={() => {
-                  setRenameDraft(file.canvases[ctxMenu.canvasId]?.name || '');
-                  setRenamingCanvasId(ctxMenu.canvasId);
+                  const fp = ctxMenu.filePath!;
+                  const fileData = files[fp];
+                  if (fileData) {
+                    if (fp !== activeFilePath) {
+                      saveViewport(getViewport());
+                      setActiveFile(fp);
+                    }
+                    setFileNameDraft(fileData.name);
+                    setEditingFileName(true);
+                  }
                   setCtxMenu(null);
                 }}
               >
                 Rename
               </div>
-              {canvasIds.length > 1 && (
-                <div
-                  className="context-menu-item danger"
-                  onClick={() => {
-                    removeCanvas(ctxMenu.canvasId);
-                    setCtxMenu(null);
-                  }}
-                >
-                  Delete
-                </div>
-              )}
+              <div
+                className="context-menu-item"
+                onClick={() => {
+                  setNewFileDraft('');
+                  const fp = ctxMenu.filePath!;
+                  const lastSlash = fp.lastIndexOf('/');
+                  const parentFolder = lastSlash === -1 ? '' : fp.substring(0, lastSlash);
+                  setCreatingFileInFolder(parentFolder);
+                  setCtxMenu(null);
+                }}
+              >
+                New Canvas File Here
+              </div>
             </>
           )}
+
           {ctxMenu.kind === 'node' && ctxMenu.nodeId && (
             <>
               <div className="context-menu-color-row">

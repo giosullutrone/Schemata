@@ -1,9 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import type { RelationshipType } from '../types/schema';
+import { COLORS } from '../constants';
 import './ContextMenu.css';
-
-const COLORS = ['#4A90D9', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#34495E', '#E67E22'];
 
 const RELATIONSHIP_TYPES: RelationshipType[] = [
   'inheritance', 'implementation', 'composition', 'aggregation', 'dependency', 'association',

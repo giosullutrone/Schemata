@@ -5,20 +5,15 @@ import type { CodeCanvasFile } from '../types/schema';
 const validFile: CodeCanvasFile = {
   version: '1.0',
   name: 'Test',
-  canvases: {
-    main: {
-      name: 'Main',
-      nodes: [
-        {
-          id: 'class-1',
-          type: 'classNode',
-          position: { x: 0, y: 0 },
-          data: { name: 'Foo', properties: [], methods: [] },
-        },
-      ],
-      edges: [],
+  nodes: [
+    {
+      id: 'class-1',
+      type: 'classNode',
+      position: { x: 0, y: 0 },
+      data: { name: 'Foo', properties: [], methods: [] },
     },
-  },
+  ],
+  edges: [],
 };
 
 describe('fileIO', () => {
@@ -26,7 +21,7 @@ describe('fileIO', () => {
     const json = serializeFile(validFile);
     const parsed = JSON.parse(json);
     expect(parsed.version).toBe('1.0');
-    expect(parsed.canvases.main.nodes).toHaveLength(1);
+    expect(parsed.nodes).toHaveLength(1);
   });
 
   it('should serialize with 2-space indentation', () => {
@@ -38,7 +33,7 @@ describe('fileIO', () => {
     const json = JSON.stringify(validFile);
     const result = deserializeFile(json);
     expect(result.name).toBe('Test');
-    expect(result.canvases.main.nodes[0].data.name).toBe('Foo');
+    expect(result.nodes[0].data.name).toBe('Foo');
   });
 
   it('should throw on invalid JSON', () => {
@@ -56,9 +51,126 @@ describe('fileIO', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  it('should reject a file without canvases', () => {
+  it('should reject a file without nodes', () => {
     const bad = { version: '1.0', name: 'X' } as unknown as CodeCanvasFile;
     const errors = validateFile(bad);
     expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('should migrate old multi-canvas format', () => {
+    const oldFormat = JSON.stringify({
+      version: '1.0',
+      name: 'Legacy',
+      canvases: {
+        main: {
+          name: 'Main',
+          nodes: [{ id: 'n1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } }],
+          edges: [],
+          viewport: { x: 10, y: 20, zoom: 1.5 },
+        },
+      },
+    });
+    const result = deserializeFile(oldFormat);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].data.name).toBe('A');
+    expect(result.edges).toEqual([]);
+    expect(result.viewport).toEqual({ x: 10, y: 20, zoom: 1.5 });
+  });
+
+  it('should handle old format with empty canvases', () => {
+    const oldFormat = JSON.stringify({
+      version: '1.0',
+      name: 'Empty',
+      canvases: {},
+    });
+    const result = deserializeFile(oldFormat);
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
+  });
+
+  it('should pass through new flat format unchanged', () => {
+    const newFormat = JSON.stringify({
+      version: '1.0',
+      name: 'New',
+      nodes: [{ id: 'n1', type: 'classNode', position: { x: 5, y: 10 }, data: { name: 'B', properties: [], methods: [] } }],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'uml', data: { relationshipType: 'dependency' } }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    });
+    const result = deserializeFile(newFormat);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(1);
+    expect(result.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  it('should reject nodes with invalid type', () => {
+    const bad = {
+      ...validFile,
+      nodes: [{ id: 'x', type: 'unknown', position: { x: 0, y: 0 }, data: {} }],
+    } as unknown as CodeCanvasFile;
+    const errors = validateFile(bad);
+    expect(errors.some((e) => e.includes('invalid type'))).toBe(true);
+  });
+
+  it('should reject nodes without id', () => {
+    const bad = {
+      ...validFile,
+      nodes: [{ type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } }],
+    } as unknown as CodeCanvasFile;
+    const errors = validateFile(bad);
+    expect(errors.some((e) => e.includes('missing "id"'))).toBe(true);
+  });
+
+  it('should reject nodes with missing position', () => {
+    const bad = {
+      ...validFile,
+      nodes: [{ id: 'x', type: 'classNode', data: { name: 'A', properties: [], methods: [] } }],
+    } as unknown as CodeCanvasFile;
+    const errors = validateFile(bad);
+    expect(errors.some((e) => e.includes('position'))).toBe(true);
+  });
+
+  it('should reject edges with invalid type', () => {
+    const bad = {
+      ...validFile,
+      edges: [{ id: 'e1', source: 'a', target: 'b', type: 'wrong', data: { relationshipType: 'dependency' } }],
+    } as unknown as CodeCanvasFile;
+    const errors = validateFile(bad);
+    expect(errors.some((e) => e.includes('invalid type'))).toBe(true);
+  });
+
+  it('should reject edges missing source or target', () => {
+    const bad = {
+      ...validFile,
+      edges: [{ id: 'e1', type: 'uml', data: { relationshipType: 'dependency' } }],
+    } as unknown as CodeCanvasFile;
+    const errors = validateFile(bad);
+    expect(errors.some((e) => e.includes('missing "source"'))).toBe(true);
+    expect(errors.some((e) => e.includes('missing "target"'))).toBe(true);
+  });
+
+  it('should reject non-object items in nodes array', () => {
+    const bad = {
+      ...validFile,
+      nodes: [42, 'hello'],
+    } as unknown as CodeCanvasFile;
+    const errors = validateFile(bad);
+    expect(errors.some((e) => e.includes('not an object'))).toBe(true);
+  });
+
+  it('should validate a file with all node types', () => {
+    const file: CodeCanvasFile = {
+      version: '1.0',
+      name: 'Multi',
+      nodes: [
+        { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
+        { id: 'a1', type: 'annotationNode', position: { x: 10, y: 10 }, data: { comment: 'hi', parentId: 'c1', parentType: 'node' } },
+        { id: 'g1', type: 'groupNode', position: { x: 20, y: 20 }, data: { label: 'Group' }, style: { width: 100, height: 100 } },
+      ],
+      edges: [
+        { id: 'e1', source: 'c1', target: 'a1', type: 'uml', data: { relationshipType: 'association' } },
+      ],
+    };
+    const errors = validateFile(file);
+    expect(errors).toEqual([]);
   });
 });

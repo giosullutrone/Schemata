@@ -30,25 +30,21 @@ import AlignmentGuides from './components/AlignmentGuides';
 import { calculateGuides, type GuideLine, type NodeRect, type SnapResult } from './utils/alignment';
 import { EDGE_CONFIG, type UmlEdgeConfig } from './components/edges/edgeConfig';
 import { useCanvasStore } from './store/useCanvasStore';
-import { deserializeFile, validateFile, saveToFileSystem, writeToHandle } from './utils/fileIO';
 import type { CanvasNodeSchema, ClassEdgeSchema, RelationshipType } from './types/schema';
+import type { ColorModeSetting, SnapMode } from './constants';
 
 const nodeTypes = { classNode: ClassNode, annotationNode: AnnotationNode, groupNode: GroupNode };
-
-type ColorModeSetting = 'light' | 'dark' | 'system';
-type SnapMode = 'grid' | 'guides' | 'none';
 
 const DIRECTIONAL_HANDLES = new Set(['top', 'bottom', 'left', 'right']);
 
 function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snapMode: SnapMode }) {
-  const file = useCanvasStore((s) => s.file);
-  const currentCanvasId = useCanvasStore((s) => s.currentCanvasId);
+  const activeFilePath = useCanvasStore((s) => s.activeFilePath);
+  const activeFile = useCanvasStore((s) => s.activeFilePath ? s.files[s.activeFilePath] ?? null : null);
   const addClassNode = useCanvasStore((s) => s.addClassNode);
   const addAnnotation = useCanvasStore((s) => s.addAnnotation);
   const addEdge = useCanvasStore((s) => s.addEdge);
   const setCanvasNodes = useCanvasStore((s) => s.setCanvasNodes);
   const pushUndoSnapshot = useCanvasStore((s) => s.pushUndoSnapshot);
-  const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
   const setCanvasEdges = useCanvasStore((s) => s.setCanvasEdges);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
@@ -158,14 +154,16 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     };
   }, []);
 
-  const canvas = file.canvases[currentCanvasId];
-  if (!canvas) return null;
+  const canvas = activeFile;
 
-  // Restore viewport when switching canvases
+  // Restore viewport when switching files
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    setViewport(canvas.viewport ?? { x: 0, y: 0, zoom: 1 });
-  }, [currentCanvasId]);
+    setViewport(canvas?.viewport ?? { x: 0, y: 0, zoom: 1 });
+  }, [activeFilePath]);
+
+  const folderName = useCanvasStore((s) => s.folderName);
+  const files = useCanvasStore((s) => s.files);
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -189,7 +187,9 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const store = useCanvasStore.getState();
-      const currentNodes = store.file.canvases[store.currentCanvasId]?.nodes;
+      const af = store.activeFilePath;
+      if (!af) return;
+      const currentNodes = store.files[af]?.nodes;
       if (!currentNodes) return;
       const updated = applyNodeChanges(changes, currentNodes) as CanvasNodeSchema[];
 
@@ -300,7 +300,9 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       const store = useCanvasStore.getState();
-      const currentEdges = store.file.canvases[store.currentCanvasId]?.edges;
+      const af = store.activeFilePath;
+      if (!af) return;
+      const currentEdges = store.files[af]?.edges;
       if (!currentEdges) return;
       const updated = applyEdgeChanges(changes, currentEdges) as ClassEdgeSchema[];
       setCanvasEdges(updated);
@@ -315,7 +317,9 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       edgeReconnectSuccessful.current = true;
       pushUndoSnapshot();
       const store = useCanvasStore.getState();
-      const currentEdges = store.file.canvases[store.currentCanvasId]?.edges;
+      const af = store.activeFilePath;
+      if (!af) return;
+      const currentEdges = store.files[af]?.edges;
       if (!currentEdges) return;
       const updated = reconnectEdge(oldEdge, newConnection, currentEdges) as ClassEdgeSchema[];
       setCanvasEdges(updated);
@@ -352,17 +356,27 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       const captured = reconnectingEdgeRef.current;
       reconnectingEdgeRef.current = null;
       if (!edgeReconnectSuccessful.current) {
-        pushUndoSnapshot();
         removeEdge(edge.id);
       } else if (captured?.labelWidth != null && captured?.labelHeight != null) {
         // Restore label dimensions — the UmlEdge component unmounts during
         // reconnection drag, so any CSS resize state on the label DOM element
-        // is lost when it remounts. Persist in edge data to survive this.
-        updateEdgeData(edge.id, { labelWidth: captured.labelWidth, labelHeight: captured.labelHeight });
+        // is lost when it remounts. Persist in edge data without pushing undo
+        // (reconnection already pushed undo in handleReconnect).
+        const store = useCanvasStore.getState();
+        const af = store.activeFilePath;
+        if (af) {
+          const currentEdges = store.files[af]?.edges;
+          if (currentEdges) {
+            const updated = currentEdges.map((e) =>
+              e.id === edge.id ? { ...e, data: { ...e.data, labelWidth: captured.labelWidth, labelHeight: captured.labelHeight } } : e
+            ) as ClassEdgeSchema[];
+            setCanvasEdges(updated);
+          }
+        }
       }
       edgeReconnectSuccessful.current = true;
     },
-    [pushUndoSnapshot, removeEdge, updateEdgeData]
+    [removeEdge, setCanvasEdges]
   );
 
   // Push undo snapshot when drag starts (before any position changes)
@@ -391,18 +405,21 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     [screenToFlowPosition, addClassNode, addAnnotation]
   );
 
+  const removeNodes = useCanvasStore((s) => s.removeNodes);
+  const removeEdges = useCanvasStore((s) => s.removeEdges);
+
   const handleNodesDelete = useCallback(
     (nodes: { id: string }[]) => {
-      nodes.forEach((n) => removeNode(n.id));
+      removeNodes(nodes.map((n) => n.id));
     },
-    [removeNode]
+    [removeNodes]
   );
 
   const handleEdgesDelete = useCallback(
     (edges: { id: string }[]) => {
-      edges.forEach((e) => removeEdge(e.id));
+      removeEdges(edges.map((e) => e.id));
     },
-    [removeEdge]
+    [removeEdges]
   );
 
   const handleNodeContextMenu = useCallback(
@@ -458,12 +475,42 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   // Elevate edges that connect to sub-handles (property/method) so they render above nodes.
   // z-index 1001 is above selected nodes (z-index 1000 from xyflow's elevateNodesOnSelect).
-  const processedEdges = canvas.edges.map((e) => {
+  const processedEdges = canvas?.edges.map((e) => {
     const hasSubHandle =
       (e.sourceHandle && !DIRECTIONAL_HANDLES.has(e.sourceHandle)) ||
       (e.targetHandle && !DIRECTIONAL_HANDLES.has(e.targetHandle));
     return hasSubHandle ? { ...e, zIndex: 1001 } : e;
-  });
+  }) ?? [];
+
+  if (!canvas) {
+    const hasFolderOpen = folderName !== null;
+    const hasFiles = Object.keys(files).length > 0;
+    let message = 'Open a folder to get started';
+    if (hasFolderOpen && !hasFiles) message = 'No canvas files found in this folder';
+    else if (hasFolderOpen) message = 'Select a file from the sidebar';
+
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: 14,
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ marginBottom: 12 }}>{message}</p>
+          {!hasFolderOpen && (
+            <button
+              onClick={() => useCanvasStore.getState().openFolder()}
+              style={{
+                padding: '6px 16px', border: '1px solid var(--border-primary)', borderRadius: 4,
+                background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13,
+              }}
+            >
+              Open Folder
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -525,7 +572,6 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 function App() {
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
-  const loadFile = useCanvasStore((s) => s.loadFile);
 
   const [colorMode, setColorMode] = useState<ColorModeSetting>(() => {
     return (localStorage.getItem('codecanvas-color-mode') as ColorModeSetting) || 'system';
@@ -579,19 +625,7 @@ function App() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        const store = useCanvasStore.getState();
-        const currentFile = store.file;
-        const handle = store.fileHandle;
-        if (handle) {
-          writeToHandle(handle, currentFile).then(() => store.markSaved());
-        } else {
-          saveToFileSystem(currentFile).then((h) => {
-            if (h) {
-              store.setFileHandle(h);
-              store.markSaved();
-            }
-          });
-        }
+        useCanvasStore.getState().saveActiveFile();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
@@ -603,39 +637,10 @@ function App() {
     return () => document.removeEventListener('keydown', handler);
   }, [undo, redo]);
 
-  // Drag-and-drop file loading
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  }, []);
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (!file || !file.name.endsWith('.json')) return;
-      try {
-        const text = await file.text();
-        const parsed = deserializeFile(text);
-        const errors = validateFile(parsed);
-        if (errors.length > 0) {
-          console.error('Invalid CodeCanvas file:', errors);
-          return;
-        }
-        loadFile(parsed);
-      } catch (err) {
-        console.error('Failed to load file:', err);
-      }
-    },
-    [loadFile]
-  );
-
   return (
     <div
       className={resolvedDark ? 'dark' : ''}
       style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'row' }}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
     >
       <ReactFlowProvider>
         <Sidebar />

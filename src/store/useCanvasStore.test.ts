@@ -1,26 +1,55 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useCanvasStore } from './useCanvasStore';
+import { useCanvasStore, migrateFile } from './useCanvasStore';
+import type { CodeCanvasFile } from '../types/schema';
+
+const TEST_FILE_PATH = 'test.codecanvas.json';
+
+/** Set up store with a single test file + active path so actions work */
+function setupTestFile() {
+  useCanvasStore.setState({
+    files: {
+      [TEST_FILE_PATH]: {
+        version: '1.0',
+        name: 'Untitled Project',
+        nodes: [],
+        edges: [],
+      },
+    },
+    activeFilePath: TEST_FILE_PATH,
+    lastSavedFiles: {},
+  });
+}
+
+/** Shorthand to get the test file */
+function getFile() {
+  return useCanvasStore.getState().files[TEST_FILE_PATH];
+}
 
 describe('useCanvasStore', () => {
   beforeEach(() => {
     useCanvasStore.getState().reset();
+    setupTestFile();
   });
 
-  it('should initialize with a default canvas', () => {
+  it('should initialize with empty state after reset', () => {
+    useCanvasStore.getState().reset();
     const state = useCanvasStore.getState();
-    expect(state.currentCanvasId).toBe('main');
-    expect(state.file.canvases.main).toBeDefined();
-    expect(state.file.canvases.main.name).toBe('Main');
-    expect(state.file.canvases.main.nodes).toEqual([]);
-    expect(state.file.canvases.main.edges).toEqual([]);
+    expect(state.activeFilePath).toBeNull();
+    expect(Object.keys(state.files)).toHaveLength(0);
+  });
+
+  it('should have test file set up correctly', () => {
+    const state = useCanvasStore.getState();
+    expect(state.activeFilePath).toBe(TEST_FILE_PATH);
+    expect(getFile()).toBeDefined();
+    expect(getFile()!.name).toBe('Untitled Project');
+    expect(getFile()!.nodes).toEqual([]);
+    expect(getFile()!.edges).toEqual([]);
   });
 
   it('should add a class node', () => {
-    const { addClassNode } = useCanvasStore.getState();
-    addClassNode(100, 200);
-
-    const state = useCanvasStore.getState();
-    const nodes = state.file.canvases.main.nodes;
+    useCanvasStore.getState().addClassNode(100, 200);
+    const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(1);
     expect(nodes[0].type).toBe('classNode');
     expect(nodes[0].position).toEqual({ x: 100, y: 200 });
@@ -30,35 +59,32 @@ describe('useCanvasStore', () => {
   });
 
   it('should remove a node', () => {
-    const { addClassNode } = useCanvasStore.getState();
-    addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
-
+    useCanvasStore.getState().addClassNode(0, 0);
+    const nodeId = getFile()!.nodes[0].id;
     useCanvasStore.getState().removeNode(nodeId);
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
+    expect(getFile()!.nodes).toHaveLength(0);
   });
 
   it('should remove edges connected to a deleted node', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
-
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(1);
+    expect(getFile()!.edges).toHaveLength(1);
 
     useCanvasStore.getState().removeNode(nodes[0].id);
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
+    expect(getFile()!.edges).toHaveLength(0);
   });
 
   it('should add an edge', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
-
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'inheritance');
-    const edges = useCanvasStore.getState().file.canvases.main.edges;
+
+    const edges = getFile()!.edges;
     expect(edges).toHaveLength(1);
     expect(edges[0].type).toBe('uml');
     expect(edges[0].data.relationshipType).toBe('inheritance');
@@ -70,21 +96,19 @@ describe('useCanvasStore', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
-    const edgeId = useCanvasStore.getState().file.canvases.main.edges[0].id;
+    const edgeId = getFile()!.edges[0].id;
 
     useCanvasStore.getState().removeEdge(edgeId);
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
+    expect(getFile()!.edges).toHaveLength(0);
   });
 
   it('should update node data', () => {
-    const { addClassNode } = useCanvasStore.getState();
-    addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
-
+    useCanvasStore.getState().addClassNode(0, 0);
+    const nodeId = getFile()!.nodes[0].id;
     useCanvasStore.getState().updateNodeData(nodeId, { name: 'UserService', color: '#4A90D9' });
-    const node = useCanvasStore.getState().file.canvases.main.nodes[0];
+    const node = getFile()!.nodes[0];
     expect(node.data.name).toBe('UserService');
     expect(node.data.color).toBe('#4A90D9');
   });
@@ -93,23 +117,21 @@ describe('useCanvasStore', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
-    const edgeId = useCanvasStore.getState().file.canvases.main.edges[0].id;
+    const edgeId = getFile()!.edges[0].id;
 
     useCanvasStore.getState().updateEdgeData(edgeId, { label: 'uses', color: '#E74C3C' });
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
+    const edge = getFile()!.edges[0];
     expect(edge.data.label).toBe('uses');
     expect(edge.data.color).toBe('#E74C3C');
   });
 
   it('should update node position', () => {
-    const { addClassNode } = useCanvasStore.getState();
-    addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
-
+    useCanvasStore.getState().addClassNode(0, 0);
+    const nodeId = getFile()!.nodes[0].id;
     useCanvasStore.getState().updateNodePosition(nodeId, 50, 75);
-    const node = useCanvasStore.getState().file.canvases.main.nodes[0];
+    const node = getFile()!.nodes[0];
     expect(node.position).toEqual({ x: 50, y: 75 });
   });
 
@@ -117,12 +139,12 @@ describe('useCanvasStore', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
-    const edgeId = useCanvasStore.getState().file.canvases.main.edges[0].id;
+    const edgeId = getFile()!.edges[0].id;
 
     useCanvasStore.getState().updateEdgeType(edgeId, 'composition');
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
+    const edge = getFile()!.edges[0];
     expect(edge.type).toBe('uml');
     expect(edge.data.relationshipType).toBe('composition');
   });
@@ -131,34 +153,32 @@ describe('useCanvasStore', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
 
     useCanvasStore.getState().setCanvasEdges([]);
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
+    expect(getFile()!.edges).toHaveLength(0);
   });
 
-  it('should save viewport for current canvas', () => {
+  it('should save viewport for current file', () => {
     useCanvasStore.getState().saveViewport({ x: 100, y: 200, zoom: 1.5 });
-    const canvas = useCanvasStore.getState().file.canvases.main;
-    expect(canvas.viewport).toEqual({ x: 100, y: 200, zoom: 1.5 });
+    expect(getFile()!.viewport).toEqual({ x: 100, y: 200, zoom: 1.5 });
   });
 
   it('should add an annotation node with default color and connecting edge', () => {
     const { addClassNode, addAnnotation } = useCanvasStore.getState();
     addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
-
+    const nodeId = getFile()!.nodes[0].id;
     addAnnotation(nodeId, 'node', 200, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+
+    const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(2);
     expect(nodes[1].type).toBe('annotationNode');
     expect(nodes[1].data.parentId).toBe(nodeId);
     expect(nodes[1].data.comment).toBe('Comment');
     expect(nodes[1].data.color).toBe('#F39C12');
 
-    // Should also create a connecting edge
-    const edges = useCanvasStore.getState().file.canvases.main.edges;
+    const edges = getFile()!.edges;
     expect(edges).toHaveLength(1);
     expect(edges[0].source).toBe(nodes[1].id);
     expect(edges[0].target).toBe(nodeId);
@@ -168,46 +188,41 @@ describe('useCanvasStore', () => {
   it('should cascade delete annotations when parent node is removed', () => {
     const { addClassNode, addAnnotation } = useCanvasStore.getState();
     addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
+    const nodeId = getFile()!.nodes[0].id;
     addAnnotation(nodeId, 'node', 200, 0);
 
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(2);
+    expect(getFile()!.nodes).toHaveLength(2);
     useCanvasStore.getState().removeNode(nodeId);
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
+    expect(getFile()!.nodes).toHaveLength(0);
   });
 
   it('should cascade delete annotations when parent edge is removed', () => {
     const { addClassNode, addEdge, addAnnotation } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
-    const edgeId = useCanvasStore.getState().file.canvases.main.edges[0].id;
+    const edgeId = getFile()!.edges[0].id;
 
     addAnnotation(edgeId, 'edge', 200, 50);
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(3);
+    expect(getFile()!.nodes).toHaveLength(3);
 
     useCanvasStore.getState().removeEdge(edgeId);
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(2); // only class nodes remain
+    expect(getFile()!.edges).toHaveLength(0);
+    expect(getFile()!.nodes).toHaveLength(2);
   });
 
   it('should add a standalone annotation (empty parentId) without a dangling edge', () => {
     useCanvasStore.getState().addAnnotation('', 'node', 100, 200);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(1);
     expect(nodes[0].type).toBe('annotationNode');
     expect(nodes[0].data.parentId).toBe('');
-
-    // No edge should be created when there is no parent
-    const edges = useCanvasStore.getState().file.canvases.main.edges;
-    expect(edges).toHaveLength(0);
+    expect(getFile()!.edges).toHaveLength(0);
   });
 
   it('should not push undo when using setCanvasNodes', () => {
-    const { addClassNode } = useCanvasStore.getState();
-    addClassNode(0, 0);
-    // addClassNode pushes undo, so stack has 1 entry
+    useCanvasStore.getState().addClassNode(0, 0);
     const stackBefore = useCanvasStore.getState()._undoStack.length;
     useCanvasStore.getState().setCanvasNodes([]);
     const stackAfter = useCanvasStore.getState()._undoStack.length;
@@ -224,12 +239,12 @@ describe('useCanvasStore', () => {
   it('should update annotation node color', () => {
     const { addClassNode, addAnnotation } = useCanvasStore.getState();
     addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
+    const nodeId = getFile()!.nodes[0].id;
     addAnnotation(nodeId, 'node', 200, 0);
-    const annotationId = useCanvasStore.getState().file.canvases.main.nodes[1].id;
+    const annotationId = getFile()!.nodes[1].id;
 
     useCanvasStore.getState().updateNodeData(annotationId, { color: '#E74C3C' });
-    const node = useCanvasStore.getState().file.canvases.main.nodes[1];
+    const node = getFile()!.nodes[1];
     expect(node.data.color).toBe('#E74C3C');
   });
 
@@ -238,16 +253,15 @@ describe('useCanvasStore', () => {
       { id: 'a', x: 100, y: 100, w: 200, h: 150 },
       { id: 'b', x: 400, y: 200, w: 200, h: 150 },
     ]);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(1);
     expect(nodes[0].type).toBe('groupNode');
     expect(nodes[0].data.label).toBe('Group');
-    // Check bounding box: padding=20, labelHeight=24
-    expect(nodes[0].position.x).toBe(80);  // 100 - 20
-    expect(nodes[0].position.y).toBe(56);  // 100 - 20 - 24
+    expect(nodes[0].position.x).toBe(80);
+    expect(nodes[0].position.y).toBe(56);
     const style = (nodes[0] as { style?: { width: number; height: number } }).style;
-    expect(style?.width).toBe(540);  // (600-100) + 40
-    expect(style?.height).toBe(314); // (350-100) + 40 + 24
+    expect(style?.width).toBe(540);
+    expect(style?.height).toBe(314);
   });
 
   it('should prepend group node so it renders behind other nodes', () => {
@@ -258,7 +272,7 @@ describe('useCanvasStore', () => {
       { id: 'a', x: 0, y: 0, w: 200, h: 150 },
       { id: 'b', x: 100, y: 0, w: 200, h: 150 },
     ]);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(3);
     expect(nodes[0].type).toBe('groupNode');
     expect(nodes[1].type).toBe('classNode');
@@ -266,64 +280,7 @@ describe('useCanvasStore', () => {
 
   it('should not create a group for empty rects', () => {
     useCanvasStore.getState().groupSelectedNodes([]);
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
-  });
-
-  it('should move a node to another canvas', () => {
-    const { addClassNode, addCanvas } = useCanvasStore.getState();
-    addClassNode(100, 200);
-    addCanvas('second', 'Second');
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
-
-    useCanvasStore.getState().moveNodeToCanvas(nodeId, 'main', 'second');
-
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
-    expect(useCanvasStore.getState().file.canvases.second.nodes).toHaveLength(1);
-    expect(useCanvasStore.getState().file.canvases.second.nodes[0].id).toBe(nodeId);
-    expect(useCanvasStore.getState().file.canvases.second.nodes[0].position).toEqual({ x: 0, y: 0 });
-  });
-
-  it('should remove edges connected to moved node', () => {
-    const { addClassNode, addEdge, addCanvas } = useCanvasStore.getState();
-    addClassNode(0, 0);
-    addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
-    addEdge(nodes[0].id, nodes[1].id, 'dependency');
-    addCanvas('second', 'Second');
-
-    useCanvasStore.getState().moveNodeToCanvas(nodes[0].id, 'main', 'second');
-
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
-    expect(useCanvasStore.getState().file.canvases.second.edges).toHaveLength(0);
-  });
-
-  it('should cascade-remove annotations when moving their parent node', () => {
-    const { addClassNode, addAnnotation, addCanvas } = useCanvasStore.getState();
-    addClassNode(0, 0);
-    const nodeId = useCanvasStore.getState().file.canvases.main.nodes[0].id;
-    addAnnotation(nodeId, 'node', 200, 0);
-    addCanvas('second', 'Second');
-
-    useCanvasStore.getState().moveNodeToCanvas(nodeId, 'main', 'second');
-
-    // Parent + annotation both move; annotation edges cleaned
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(0);
-    expect(useCanvasStore.getState().file.canvases.main.edges).toHaveLength(0);
-    // Only the class node moves; annotation stays removed (it's parented)
-    const secondNodes = useCanvasStore.getState().file.canvases.second.nodes;
-    expect(secondNodes).toHaveLength(1);
-    expect(secondNodes[0].type).toBe('classNode');
-  });
-
-  it('should reorder canvases', () => {
-    const { addCanvas } = useCanvasStore.getState();
-    addCanvas('second', 'Second');
-    addCanvas('third', 'Third');
-
-    useCanvasStore.getState().reorderCanvases(['third', 'main', 'second']);
-
-    const keys = Object.keys(useCanvasStore.getState().file.canvases);
-    expect(keys).toEqual(['third', 'main', 'second']);
+    expect(getFile()!.nodes).toHaveLength(0);
   });
 
   it('should toggle sidebar open state', () => {
@@ -336,215 +293,197 @@ describe('useCanvasStore', () => {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
-    const edgeId = useCanvasStore.getState().file.canvases.main.edges[0].id;
+    const edgeId = getFile()!.edges[0].id;
 
-    // Set label and color first
     useCanvasStore.getState().updateEdgeData(edgeId, { label: 'uses', color: '#E74C3C' });
-    // Then change type
     useCanvasStore.getState().updateEdgeType(edgeId, 'composition');
 
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
+    const edge = getFile()!.edges[0];
     expect(edge.data.relationshipType).toBe('composition');
     expect(edge.data.label).toBe('uses');
     expect(edge.data.color).toBe('#E74C3C');
+  });
+
+  it('should no-op actions when no active file', () => {
+    useCanvasStore.getState().reset();
+    // These should not throw
+    useCanvasStore.getState().addClassNode(0, 0);
+    useCanvasStore.getState().pushUndoSnapshot();
+    expect(Object.keys(useCanvasStore.getState().files)).toHaveLength(0);
+  });
+
+  it('should rename the active file', () => {
+    useCanvasStore.getState().renameFile('New Name');
+    expect(getFile()!.name).toBe('New Name');
+  });
+
+  it('should set active file', () => {
+    useCanvasStore.getState().setActiveFile('some-file.json');
+    const state = useCanvasStore.getState();
+    expect(state.activeFilePath).toBe('some-file.json');
+  });
+
+  it('should batch-remove multiple nodes with one undo entry', () => {
+    const { addClassNode } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    addClassNode(200, 0);
+    const undoBefore = useCanvasStore.getState()._undoStack.length;
+
+    const nodeIds = getFile()!.nodes.map((n) => n.id);
+    useCanvasStore.getState().removeNodes(nodeIds);
+
+    expect(getFile()!.nodes).toHaveLength(0);
+    expect(useCanvasStore.getState()._undoStack.length).toBe(undoBefore + 1);
+  });
+
+  it('should cascade-delete annotations when batch-removing parent nodes', () => {
+    const { addClassNode, addAnnotation } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    const nodes = getFile()!.nodes;
+    addAnnotation(nodes[0].id, 'node', 200, 0);
+
+    expect(getFile()!.nodes).toHaveLength(3);
+    useCanvasStore.getState().removeNodes([nodes[0].id, nodes[1].id]);
+    expect(getFile()!.nodes).toHaveLength(0);
+  });
+
+  it('should no-op removeNodes with empty array', () => {
+    const undoBefore = useCanvasStore.getState()._undoStack.length;
+    useCanvasStore.getState().removeNodes([]);
+    expect(useCanvasStore.getState()._undoStack.length).toBe(undoBefore);
+  });
+
+  it('should batch-remove multiple edges with one undo entry', () => {
+    const { addClassNode, addEdge } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    addClassNode(200, 0);
+    const nodes = getFile()!.nodes;
+    addEdge(nodes[0].id, nodes[1].id, 'dependency');
+    addEdge(nodes[1].id, nodes[2].id, 'inheritance');
+
+    const undoBefore = useCanvasStore.getState()._undoStack.length;
+    const edgeIds = getFile()!.edges.map((e) => e.id);
+    useCanvasStore.getState().removeEdges(edgeIds);
+
+    expect(getFile()!.edges).toHaveLength(0);
+    expect(useCanvasStore.getState()._undoStack.length).toBe(undoBefore + 1);
+  });
+
+  it('should cascade-delete annotations when batch-removing parent edges', () => {
+    const { addClassNode, addEdge, addAnnotation } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    addClassNode(100, 0);
+    const nodes = getFile()!.nodes;
+    addEdge(nodes[0].id, nodes[1].id, 'dependency');
+    const edgeId = getFile()!.edges[0].id;
+    addAnnotation(edgeId, 'edge', 200, 50);
+
+    expect(getFile()!.nodes).toHaveLength(3);
+    useCanvasStore.getState().removeEdges([edgeId]);
+    expect(getFile()!.edges).toHaveLength(0);
+    expect(getFile()!.nodes).toHaveLength(2);
+  });
+
+  it('should no-op removeEdges with empty array', () => {
+    const undoBefore = useCanvasStore.getState()._undoStack.length;
+    useCanvasStore.getState().removeEdges([]);
+    expect(useCanvasStore.getState()._undoStack.length).toBe(undoBefore);
   });
 });
 
 describe('Edge label lifecycle', () => {
   beforeEach(() => {
     useCanvasStore.getState().reset();
+    setupTestFile();
   });
 
   function createEdge() {
     const { addClassNode, addEdge } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(200, 0);
-    const nodes = useCanvasStore.getState().file.canvases.main.nodes;
+    const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'association');
-    return useCanvasStore.getState().file.canvases.main.edges[0].id;
+    return getFile()!.edges[0].id;
   }
 
   it('should set empty-string label as creation marker', () => {
     const edgeId = createEdge();
-    // Simulates handleEdgeDoubleClick setting label to '' as a signal
     useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
-    expect(edge.data.label).toBe('');
+    expect(getFile()!.edges[0].data.label).toBe('');
   });
 
   it('should save label text over the creation marker', () => {
     const edgeId = createEdge();
-    // Step 1: double-click sets marker
     useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
-    // Step 2: user types and commits
     useCanvasStore.getState().updateEdgeData(edgeId, { label: 'uses' });
-
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
-    expect(edge.data.label).toBe('uses');
+    expect(getFile()!.edges[0].data.label).toBe('uses');
   });
 
   it('should remove label when committing empty text', () => {
     const edgeId = createEdge();
     useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
-    // User commits without typing → label should be removed
     useCanvasStore.getState().updateEdgeData(edgeId, { label: undefined });
-
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
-    expect(edge.data.label).toBeUndefined();
-  });
-
-  it('should remove label when cancelling creation via Escape', () => {
-    const edgeId = createEdge();
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
-    // Escape → clean up the empty-string marker
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: undefined });
-
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
-    expect(edge.data.label).toBeUndefined();
-  });
-
-  it('should preserve label after intermediate state during commit', () => {
-    const edgeId = createEdge();
-    // Simulates the full lifecycle:
-    // 1. Double-click: marker set
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
-    expect(useCanvasStore.getState().file.canvases.main.edges[0].data.label).toBe('');
-
-    // 2. Commit: label saved (the real component calls this in commitLabel)
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: 'depends on' });
-    expect(useCanvasStore.getState().file.canvases.main.edges[0].data.label).toBe('depends on');
-
-    // 3. Verify label persists (it shouldn't revert to '' or undefined)
-    const finalEdge = useCanvasStore.getState().file.canvases.main.edges[0];
-    expect(finalEdge.data.label).toBe('depends on');
-    expect(finalEdge.data.relationshipType).toBe('association');
-  });
-
-  it('should allow re-editing an existing label', () => {
-    const edgeId = createEdge();
-    // Create and commit initial label
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: 'uses' });
-
-    // Edit existing label (double-click on label div sets draft, doesn't touch store)
-    // Commit with new text
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: 'depends on' });
-
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
-    expect(edge.data.label).toBe('depends on');
+    expect(getFile()!.edges[0].data.label).toBeUndefined();
   });
 
   it('should preserve other data fields when updating label', () => {
     const edgeId = createEdge();
     useCanvasStore.getState().updateEdgeData(edgeId, { color: '#E74C3C' });
-    useCanvasStore.getState().updateEdgeData(edgeId, { label: '' });
     useCanvasStore.getState().updateEdgeData(edgeId, { label: 'uses' });
-
-    const edge = useCanvasStore.getState().file.canvases.main.edges[0];
+    const edge = getFile()!.edges[0];
     expect(edge.data.label).toBe('uses');
     expect(edge.data.color).toBe('#E74C3C');
     expect(edge.data.relationshipType).toBe('association');
   });
 });
 
-describe('Canvas management', () => {
-  beforeEach(() => {
-    useCanvasStore.getState().reset();
+describe('migrateFile', () => {
+  it('should return the same file when no migration is needed', () => {
+    const file: CodeCanvasFile = {
+      version: '1.0',
+      name: 'Test',
+      nodes: [
+        { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [{ id: 'p1', name: 'x', type: 'int', visibility: 'public' }], methods: [{ id: 'm1', name: 'foo', parameters: [], returnType: 'void', visibility: 'public' }] } },
+      ],
+      edges: [],
+    };
+    const result = migrateFile(file);
+    expect(result).toBe(file); // same reference — no-op
   });
 
-  it('should add a new canvas', () => {
-    useCanvasStore.getState().addCanvas('auth', 'Authentication');
-    const state = useCanvasStore.getState();
-    expect(state.file.canvases.auth).toBeDefined();
-    expect(state.file.canvases.auth.name).toBe('Authentication');
-    expect(state.file.canvases.auth.nodes).toEqual([]);
-  });
-
-  it('should switch current canvas', () => {
-    useCanvasStore.getState().addCanvas('auth', 'Authentication');
-    useCanvasStore.getState().setCurrentCanvas('auth');
-    expect(useCanvasStore.getState().currentCanvasId).toBe('auth');
-  });
-
-  it('should remove a canvas and switch to another', () => {
-    useCanvasStore.getState().addCanvas('auth', 'Authentication');
-    useCanvasStore.getState().setCurrentCanvas('auth');
-    useCanvasStore.getState().removeCanvas('auth');
-
-    const state = useCanvasStore.getState();
-    expect(state.file.canvases.auth).toBeUndefined();
-    expect(state.currentCanvasId).toBe('main');
-  });
-
-  it('should rename a canvas', () => {
-    useCanvasStore.getState().renameCanvas('main', 'Core Architecture');
-    expect(useCanvasStore.getState().file.canvases.main.name).toBe('Core Architecture');
-  });
-
-  it('should scope node operations to current canvas', () => {
-    useCanvasStore.getState().addCanvas('auth', 'Authentication');
-    useCanvasStore.getState().addClassNode(0, 0); // adds to 'main'
-
-    useCanvasStore.getState().setCurrentCanvas('auth');
-    useCanvasStore.getState().addClassNode(100, 100); // adds to 'auth'
-
-    expect(useCanvasStore.getState().file.canvases.main.nodes).toHaveLength(1);
-    expect(useCanvasStore.getState().file.canvases.auth.nodes).toHaveLength(1);
-  });
-
-  it('should load a file', () => {
+  it('should add IDs to properties and methods that lack them', () => {
     const file = {
       version: '1.0',
-      name: 'Loaded Project',
-      canvases: {
-        api: {
-          name: 'API Layer',
-          nodes: [],
-          edges: [],
-        },
-      },
-    };
-    useCanvasStore.getState().loadFile(file);
-    const state = useCanvasStore.getState();
-    expect(state.file.name).toBe('Loaded Project');
-    expect(state.currentCanvasId).toBe('api');
-  });
-
-  it('should migrate old files by adding IDs to properties and methods', () => {
-    const file = {
-      version: '1.0',
-      name: 'Old Project',
-      canvases: {
-        main: {
-          name: 'Main',
-          nodes: [
-            {
-              id: 'class-1',
-              type: 'classNode' as const,
-              position: { x: 0, y: 0 },
-              data: {
-                name: 'OldClass',
-                properties: [
-                  { name: 'field', type: 'string', visibility: 'private' as const },
-                ],
-                methods: [
-                  { name: 'doStuff', parameters: [], returnType: 'void', visibility: 'public' as const },
-                ],
-              },
-            },
-          ],
-          edges: [],
-        },
-      },
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    useCanvasStore.getState().loadFile(file as any);
-    const node = useCanvasStore.getState().file.canvases.main.nodes[0];
+      name: 'Test',
+      nodes: [
+        { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [{ name: 'x', type: 'int', visibility: 'public' }], methods: [{ name: 'foo', parameters: [], returnType: 'void', visibility: 'public' }] } },
+      ],
+      edges: [],
+    } as unknown as CodeCanvasFile;
+    const result = migrateFile(file);
+    expect(result).not.toBe(file); // new object
+    const node = result.nodes[0];
     if (node.type === 'classNode') {
-      expect(node.data.properties[0].id).toBeDefined();
-      expect(node.data.methods[0].id).toBeDefined();
+      expect(node.data.properties[0].id).toBeTruthy();
+      expect(node.data.methods[0].id).toBeTruthy();
     }
+  });
+
+  it('should not modify non-classNode nodes', () => {
+    const file: CodeCanvasFile = {
+      version: '1.0',
+      name: 'Test',
+      nodes: [
+        { id: 'a1', type: 'annotationNode', position: { x: 0, y: 0 }, data: { comment: 'hi', parentId: 'c1', parentType: 'node' } },
+      ],
+      edges: [],
+    };
+    const result = migrateFile(file);
+    expect(result).toBe(file); // no migration needed
   });
 });

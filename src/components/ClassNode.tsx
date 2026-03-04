@@ -8,9 +8,11 @@ type ClassNodeType = Node<ClassNodeData, 'classNode'>;
 
 function findClassNode(nodeId: string): ClassNodeSchema | undefined {
   const state = useCanvasStore.getState();
-  const canvas = state.file.canvases[state.currentCanvasId];
-  const node = canvas.nodes.find((n) => n.id === nodeId);
-  if (node?.type === 'classNode') return node;
+  if (!state.activeFilePath) return undefined;
+  const file = state.files[state.activeFilePath];
+  if (!file) return undefined;
+  const node = file.nodes.find((n: ClassNodeSchema | { id: string; type?: string }) => n.id === nodeId);
+  if (node?.type === 'classNode') return node as ClassNodeSchema;
   return undefined;
 }
 

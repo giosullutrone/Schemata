@@ -6,6 +6,12 @@ import type {
   CanvasNodeSchema,
   RelationshipType,
 } from '../types/schema';
+import {
+  openFolder as openFolderPicker,
+  scanFolder,
+  createFileInFolder,
+  writeToHandle,
+} from '../utils/fileIO';
 
 let nextNodeId = 1;
 let nextEdgeId = 1;
@@ -38,51 +44,94 @@ export function generateMethodId(): string {
   return `m${nextMethodId++}`;
 }
 
+interface UndoEntry {
+  filePath: string;
+  snapshot: CodeCanvasFile;
+}
+
+const MAX_UNDO_STACK = 100;
+
 function pushUndo(get: () => CanvasStore, set: (partial: Partial<CanvasStore>) => void) {
-  const { file, _undoStack } = get();
+  const { files, activeFilePath, _undoStack } = get();
+  if (!activeFilePath) return;
+  const file = files[activeFilePath];
+  if (!file) return;
+  const newStack = [..._undoStack, { filePath: activeFilePath, snapshot: JSON.parse(JSON.stringify(file)) }];
+  if (newStack.length > MAX_UNDO_STACK) newStack.splice(0, newStack.length - MAX_UNDO_STACK);
   set({
-    _undoStack: [..._undoStack, JSON.parse(JSON.stringify(file))],
+    _undoStack: newStack,
     _redoStack: [],
+    _dirtyFiles: { ...get()._dirtyFiles, [activeFilePath]: true },
   });
 }
 
-function createDefaultFile(): CodeCanvasFile {
-  return {
-    version: '1.0',
-    name: 'Untitled Project',
-    canvases: {
-      main: {
-        name: 'Main',
-        nodes: [],
-        edges: [],
-      },
-    },
-  };
+/** Helper: update the active file's state via an updater function */
+function updateActiveFile(
+  get: () => CanvasStore,
+  set: (partial: Partial<CanvasStore>) => void,
+  updater: (file: CodeCanvasFile) => CodeCanvasFile,
+) {
+  const { activeFilePath, files } = get();
+  if (!activeFilePath) return;
+  const file = files[activeFilePath];
+  if (!file) return;
+  const updated = updater(file);
+  set({ files: { ...files, [activeFilePath]: updated } });
 }
 
 /** Migrate older files: ensure all properties/methods have stable IDs */
-function migrateFile(file: CodeCanvasFile): void {
-  for (const canvas of Object.values(file.canvases)) {
-    for (const node of canvas.nodes) {
-      if (node.type === 'classNode') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        node.data.properties.forEach((p: any) => {
-          if (!p.id) p.id = generatePropId();
-        });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        node.data.methods.forEach((m: any) => {
-          if (!m.id) m.id = generateMethodId();
-        });
+export function migrateFile(file: CodeCanvasFile): CodeCanvasFile {
+  let needsMigration = false;
+  for (const node of file.nodes) {
+    if (node.type === 'classNode') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (node.data.properties.some((p: any) => !p.id) || node.data.methods.some((m: any) => !m.id)) {
+        needsMigration = true;
+        break;
       }
     }
   }
+  if (!needsMigration) return file;
+  return {
+    ...file,
+    nodes: file.nodes.map((node) => {
+      if (node.type !== 'classNode') return node;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          properties: node.data.properties.map((p: any) => (p.id ? p : { ...p, id: generatePropId() })),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          methods: node.data.methods.map((m: any) => (m.id ? m : { ...m, id: generateMethodId() })),
+        },
+      };
+    }),
+  };
 }
 
 interface CanvasStore {
-  file: CodeCanvasFile;
-  currentCanvasId: string;
-  _undoStack: CodeCanvasFile[];
-  _redoStack: CodeCanvasFile[];
+  // Folder state
+  folderHandle: FileSystemDirectoryHandle | null;
+  folderName: string | null;
+
+  // Multi-file state
+  files: Record<string, CodeCanvasFile>;
+  fileHandles: Record<string, FileSystemFileHandle>;
+
+  // Active location
+  activeFilePath: string | null;
+
+  // Undo/redo
+  _undoStack: UndoEntry[];
+  _redoStack: UndoEntry[];
+
+  // Save tracking
+  lastSavedFiles: Record<string, CodeCanvasFile>;
+  _dirtyFiles: Record<string, boolean>;
+
+  // Sidebar
+  sidebarOpen: boolean;
 
   // Undo/Redo
   undo: () => void;
@@ -91,20 +140,18 @@ interface CanvasStore {
   // Reset (for tests)
   reset: () => void;
 
-  // File operations
-  loadFile: (file: CodeCanvasFile) => void;
-
-  // Canvas operations
-  setCurrentCanvas: (canvasId: string) => void;
-  addCanvas: (id: string, name: string) => void;
-  removeCanvas: (id: string) => void;
-  renameCanvas: (id: string, name: string) => void;
+  // Folder operations
+  openFolder: () => Promise<void>;
+  setActiveFile: (filePath: string) => void;
+  createFile: (folderRelativePath: string, displayName: string) => Promise<void>;
+  saveActiveFile: () => Promise<void>;
 
   // Node operations
   addClassNode: (x: number, y: number) => void;
   addAnnotation: (parentId: string, parentType: 'node' | 'edge', x: number, y: number) => void;
   groupSelectedNodes: (rects: { id: string; x: number; y: number; w: number; h: number }[]) => void;
   removeNode: (nodeId: string) => void;
+  removeNodes: (nodeIds: string[]) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
   setCanvasNodes: (nodes: CanvasNodeSchema[]) => void;
@@ -113,57 +160,57 @@ interface CanvasStore {
   // Edge operations
   addEdge: (source: string, target: string, type: RelationshipType, sourceHandle?: string, targetHandle?: string) => void;
   removeEdge: (edgeId: string) => void;
+  removeEdges: (edgeIds: string[]) => void;
   updateEdgeData: (edgeId: string, data: Partial<ClassEdgeData>) => void;
   updateEdgeType: (edgeId: string, type: RelationshipType) => void;
   setCanvasEdges: (edges: ClassEdgeSchema[]) => void;
   saveViewport: (viewport: { x: number; y: number; zoom: number }) => void;
 
   // Sidebar
-  sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  fileHandle: FileSystemFileHandle | null;
-  setFileHandle: (handle: FileSystemFileHandle | null) => void;
 
-  // Cross-canvas operations
-  moveNodeToCanvas: (nodeId: string, fromCanvasId: string, toCanvasId: string, targetPosition?: { x: number; y: number }) => void;
-  reorderCanvases: (orderedIds: string[]) => void;
-
-  // Save tracking
-  lastSavedFile: CodeCanvasFile | null;
-  markSaved: () => void;
+  // File name
+  renameFile: (newName: string) => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
-  file: createDefaultFile(),
-  currentCanvasId: 'main',
+  folderHandle: null,
+  folderName: null,
+  files: {},
+  fileHandles: {},
+  activeFilePath: null,
   _undoStack: [],
   _redoStack: [],
+  lastSavedFiles: {},
+  _dirtyFiles: {},
   sidebarOpen: (() => {
     const stored = localStorage.getItem('codecanvas-sidebar-open');
     return stored !== null ? stored === 'true' : true;
   })(),
-  fileHandle: null,
-  lastSavedFile: null,
 
   undo: () => {
-    const { _undoStack, file } = get();
+    const { _undoStack, files } = get();
     if (_undoStack.length === 0) return;
-    const previous = _undoStack[_undoStack.length - 1];
+    const entry = _undoStack[_undoStack.length - 1];
+    const currentFile = files[entry.filePath];
+    if (!currentFile) return;
     set({
       _undoStack: _undoStack.slice(0, -1),
-      _redoStack: [...get()._redoStack, file],
-      file: previous,
+      _redoStack: [...get()._redoStack, { filePath: entry.filePath, snapshot: currentFile }],
+      files: { ...files, [entry.filePath]: entry.snapshot },
     });
   },
 
   redo: () => {
-    const { _redoStack, file } = get();
+    const { _redoStack, files } = get();
     if (_redoStack.length === 0) return;
-    const next = _redoStack[_redoStack.length - 1];
+    const entry = _redoStack[_redoStack.length - 1];
+    const currentFile = files[entry.filePath];
+    if (!currentFile) return;
     set({
       _redoStack: _redoStack.slice(0, -1),
-      _undoStack: [...get()._undoStack, file],
-      file: next,
+      _undoStack: [...get()._undoStack, { filePath: entry.filePath, snapshot: currentFile }],
+      files: { ...files, [entry.filePath]: entry.snapshot },
     });
   },
 
@@ -174,264 +221,238 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     nextGroupId = 1;
     nextPropId = 1;
     nextMethodId = 1;
-    set({ file: createDefaultFile(), currentCanvasId: 'main', _undoStack: [], _redoStack: [], sidebarOpen: true, fileHandle: null, lastSavedFile: null });
-  },
-
-  loadFile: (file) => {
-    migrateFile(file);
-    const canvasIds = Object.keys(file.canvases);
-    set({ file, currentCanvasId: canvasIds[0] || 'main', lastSavedFile: file });
-  },
-
-  setCurrentCanvas: (canvasId) => {
-    set({ currentCanvasId: canvasId });
-  },
-
-  addCanvas: (id, name) => {
-    pushUndo(get, set);
-    const { file } = get();
     set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [id]: { name, nodes: [], edges: [] },
-        },
-      },
+      folderHandle: null,
+      folderName: null,
+      files: {},
+      fileHandles: {},
+      activeFilePath: null,
+      _undoStack: [],
+      _redoStack: [],
+      lastSavedFiles: {},
+      _dirtyFiles: {},
+      sidebarOpen: true,
     });
   },
 
-  removeCanvas: (id) => {
-    pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const { [id]: _, ...rest } = file.canvases;
-    const newCurrentId = currentCanvasId === id ? Object.keys(rest)[0] : currentCanvasId;
+  openFolder: async () => {
+    const dirHandle = await openFolderPicker();
+    if (!dirHandle) return;
+    const scanned = await scanFolder(dirHandle);
+    const files: Record<string, CodeCanvasFile> = {};
+    const handles: Record<string, FileSystemFileHandle> = {};
+    const lastSaved: Record<string, CodeCanvasFile> = {};
+    for (const s of scanned) {
+      const migrated = migrateFile(s.file);
+      files[s.relativePath] = migrated;
+      handles[s.relativePath] = s.handle;
+      lastSaved[s.relativePath] = migrated;
+    }
+    const firstPath = Object.keys(files)[0] ?? null;
     set({
-      file: { ...file, canvases: rest },
-      currentCanvasId: newCurrentId,
+      folderHandle: dirHandle,
+      folderName: dirHandle.name,
+      files,
+      fileHandles: handles,
+      lastSavedFiles: lastSaved,
+      _dirtyFiles: {},
+      activeFilePath: firstPath,
+      _undoStack: [],
+      _redoStack: [],
     });
   },
 
-  renameCanvas: (id, name) => {
-    pushUndo(get, set);
-    const { file } = get();
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [id]: { ...file.canvases[id], name },
-        },
-      },
-    });
+  setActiveFile: (filePath) => {
+    set({ activeFilePath: filePath });
+  },
+
+  createFile: async (folderRelativePath, displayName) => {
+    const { folderHandle, files, fileHandles, lastSavedFiles } = get();
+    if (!folderHandle) return;
+    const newFile: CodeCanvasFile = {
+      version: '1.0',
+      name: displayName,
+      nodes: [],
+      edges: [],
+    };
+    const sanitized = displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const fileName = `${sanitized || 'untitled'}.codecanvas.json`;
+    try {
+      const result = await createFileInFolder(folderHandle, folderRelativePath, fileName, newFile);
+      if (!result) return;
+      set({
+        files: { ...files, [result.relativePath]: result.file },
+        fileHandles: { ...fileHandles, [result.relativePath]: result.handle },
+        lastSavedFiles: { ...lastSavedFiles, [result.relativePath]: result.file },
+        activeFilePath: result.relativePath,
+      });
+    } catch {
+      // Failed to create file on disk
+    }
+  },
+
+  saveActiveFile: async () => {
+    const { activeFilePath, files, fileHandles } = get();
+    if (!activeFilePath) return;
+    const file = files[activeFilePath];
+    const handle = fileHandles[activeFilePath];
+    if (!file || !handle) return;
+    await writeToHandle(handle, file);
+    const { _dirtyFiles } = get();
+    const nextDirty = { ..._dirtyFiles };
+    delete nextDirty[activeFilePath];
+    set({ _dirtyFiles: nextDirty });
   },
 
   addClassNode: (x, y) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    const newNode = {
-      id: generateNodeId(),
-      type: 'classNode' as const,
-      position: { x, y },
-      data: {
-        name: 'NewClass',
-        properties: [],
-        methods: [],
-      },
-    };
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: [...canvas.nodes, newNode],
-          },
+    updateActiveFile(get, set, (file) => {
+      const newNode = {
+        id: generateNodeId(),
+        type: 'classNode' as const,
+        position: { x, y },
+        data: {
+          name: 'NewClass',
+          properties: [],
+          methods: [],
         },
-      },
+      };
+      return { ...file, nodes: [...file.nodes, newNode] };
     });
   },
 
   addAnnotation: (parentId, parentType, x, y) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    const nodeId = generateAnnotationId();
+    updateActiveFile(get, set, (file) => {
+      const nodeId = generateAnnotationId();
 
-    // Resolve target node for the edge
-    let targetNodeId = parentId;
-    if (parentType === 'edge') {
-      const parentEdge = canvas.edges.find((e) => e.id === parentId);
-      if (parentEdge) targetNodeId = parentEdge.source;
-    }
+      let targetNodeId = parentId;
+      if (parentType === 'edge') {
+        const parentEdge = file.edges.find((e) => e.id === parentId);
+        if (parentEdge) targetNodeId = parentEdge.source;
+      }
 
-    // Pick handles based on relative position to the target
-    const targetNode = canvas.nodes.find((n) => n.id === targetNodeId);
-    const isLeft = targetNode ? x < targetNode.position.x : false;
-    const sourceHandle = isLeft ? 'right' : 'left';
-    const targetHandle = isLeft ? 'left' : 'right';
+      const targetNode = file.nodes.find((n) => n.id === targetNodeId);
+      const isLeft = targetNode ? x < targetNode.position.x : false;
+      const sourceHandle = isLeft ? 'right' : 'left';
+      const targetHandle = isLeft ? 'left' : 'right';
 
-    const newNode = {
-      id: nodeId,
-      type: 'annotationNode' as const,
-      position: { x, y },
-      data: {
-        comment: 'Comment',
-        parentId,
-        parentType,
-        color: '#F39C12',
-      },
-    };
-
-    // Only create a connecting edge when there's a real parent
-    const newEdges = targetNodeId
-      ? [
-          ...canvas.edges,
-          {
-            id: generateEdgeId(),
-            source: nodeId,
-            target: targetNodeId,
-            sourceHandle,
-            targetHandle,
-            type: 'uml' as const,
-            data: { relationshipType: 'association' as const },
-          } satisfies ClassEdgeSchema,
-        ]
-      : canvas.edges;
-
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: [...canvas.nodes, newNode],
-            edges: newEdges,
-          },
+      const newNode = {
+        id: nodeId,
+        type: 'annotationNode' as const,
+        position: { x, y },
+        data: {
+          comment: 'Comment',
+          parentId,
+          parentType,
+          color: '#F39C12',
         },
-      },
+      };
+
+      const newEdges = targetNodeId
+        ? [
+            ...file.edges,
+            {
+              id: generateEdgeId(),
+              source: nodeId,
+              target: targetNodeId,
+              sourceHandle,
+              targetHandle,
+              type: 'uml' as const,
+              data: { relationshipType: 'association' as const },
+            } satisfies ClassEdgeSchema,
+          ]
+        : file.edges;
+
+      return { ...file, nodes: [...file.nodes, newNode], edges: newEdges };
     });
   },
 
   groupSelectedNodes: (rects) => {
     if (rects.length === 0) return;
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    const padding = 20;
-    const labelHeight = 24;
-    const minX = Math.min(...rects.map((r) => r.x));
-    const minY = Math.min(...rects.map((r) => r.y));
-    const maxX = Math.max(...rects.map((r) => r.x + r.w));
-    const maxY = Math.max(...rects.map((r) => r.y + r.h));
-    const groupNode = {
-      id: generateGroupId(),
-      type: 'groupNode' as const,
-      position: { x: minX - padding, y: minY - padding - labelHeight },
-      data: { label: 'Group' },
-      style: {
-        width: maxX - minX + padding * 2,
-        height: maxY - minY + padding * 2 + labelHeight,
-      },
-    };
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: [groupNode, ...canvas.nodes],
-          },
+    updateActiveFile(get, set, (file) => {
+      const padding = 20;
+      const labelHeight = 24;
+      const minX = Math.min(...rects.map((r) => r.x));
+      const minY = Math.min(...rects.map((r) => r.y));
+      const maxX = Math.max(...rects.map((r) => r.x + r.w));
+      const maxY = Math.max(...rects.map((r) => r.y + r.h));
+      const groupNode = {
+        id: generateGroupId(),
+        type: 'groupNode' as const,
+        position: { x: minX - padding, y: minY - padding - labelHeight },
+        data: { label: 'Group' },
+        style: {
+          width: maxX - minX + padding * 2,
+          height: maxY - minY + padding * 2 + labelHeight,
         },
-      },
+      };
+      return { ...file, nodes: [groupNode, ...file.nodes] };
     });
   },
 
   removeNode: (nodeId) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    // Collect all node IDs to remove (target + cascade annotations)
-    const removedIds = new Set([nodeId]);
-    for (const n of canvas.nodes) {
-      if (n.type === 'annotationNode' && n.data.parentId === nodeId) {
-        removedIds.add(n.id);
+    updateActiveFile(get, set, (file) => {
+      const removedIds = new Set([nodeId]);
+      for (const n of file.nodes) {
+        if (n.type === 'annotationNode' && n.data.parentId === nodeId) {
+          removedIds.add(n.id);
+        }
       }
-    }
-    set({
-      file: {
+      return {
         ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: canvas.nodes.filter((n) => !removedIds.has(n.id)),
-            edges: canvas.edges.filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target)),
-          },
-        },
-      },
+        nodes: file.nodes.filter((n) => !removedIds.has(n.id)),
+        edges: file.edges.filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target)),
+      };
+    });
+  },
+
+  removeNodes: (nodeIds) => {
+    if (nodeIds.length === 0) return;
+    pushUndo(get, set);
+    updateActiveFile(get, set, (file) => {
+      const removedIds = new Set(nodeIds);
+      for (const n of file.nodes) {
+        if (n.type === 'annotationNode' && removedIds.has(n.data.parentId)) {
+          removedIds.add(n.id);
+        }
+      }
+      return {
+        ...file,
+        nodes: file.nodes.filter((n) => !removedIds.has(n.id)),
+        edges: file.edges.filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target)),
+      };
     });
   },
 
   updateNodeData: (nodeId, data) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: canvas.nodes.map((n) =>
-              n.id === nodeId ? { ...n, data: { ...n.data, ...data } } as CanvasNodeSchema : n
-            ),
-          },
-        },
-      },
-    });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      nodes: file.nodes.map((n) =>
+        n.id === nodeId ? { ...n, data: { ...n.data, ...data } } as CanvasNodeSchema : n
+      ),
+    }));
   },
 
   updateNodePosition: (nodeId, x, y) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: canvas.nodes.map((n) =>
-              n.id === nodeId ? { ...n, position: { x, y } } : n
-            ),
-          },
-        },
-      },
-    });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      nodes: file.nodes.map((n) =>
+        n.id === nodeId ? { ...n, position: { x, y } } : n
+      ),
+    }));
   },
 
   setCanvasNodes: (nodes) => {
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes,
-          },
-        },
-      },
-    });
+    const { activeFilePath, files } = get();
+    if (!activeFilePath) return;
+    const file = files[activeFilePath];
+    if (!file || file.nodes === nodes) return;
+    updateActiveFile(get, set, (f) => ({ ...f, nodes }));
   },
 
   pushUndoSnapshot: () => {
@@ -440,128 +461,91 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
   addEdge: (source, target, type, sourceHandle, targetHandle) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    const newEdge: ClassEdgeSchema = {
-      id: generateEdgeId(),
-      source,
-      target,
-      ...(sourceHandle ? { sourceHandle } : {}),
-      ...(targetHandle ? { targetHandle } : {}),
-      type: 'uml' as const,
-      data: { relationshipType: type },
-    };
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            edges: [...canvas.edges, newEdge],
-          },
-        },
-      },
+    updateActiveFile(get, set, (file) => {
+      const newEdge: ClassEdgeSchema = {
+        id: generateEdgeId(),
+        source,
+        target,
+        ...(sourceHandle ? { sourceHandle } : {}),
+        ...(targetHandle ? { targetHandle } : {}),
+        type: 'uml' as const,
+        data: { relationshipType: type },
+      };
+      return { ...file, edges: [...file.edges, newEdge] };
     });
   },
 
   removeEdge: (edgeId) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    // Collect annotation node IDs that will be cascade-deleted
-    const removedNodeIds = new Set(
-      canvas.nodes
-        .filter((n) => n.type === 'annotationNode' && n.data.parentId === edgeId)
-        .map((n) => n.id)
-    );
-    set({
-      file: {
+    updateActiveFile(get, set, (file) => {
+      const removedNodeIds = new Set(
+        file.nodes
+          .filter((n) => n.type === 'annotationNode' && n.data.parentId === edgeId)
+          .map((n) => n.id)
+      );
+      return {
         ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            nodes: canvas.nodes.filter((n) => !removedNodeIds.has(n.id)),
-            edges: canvas.edges.filter((e) => e.id !== edgeId && !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)),
-          },
-        },
-      },
+        nodes: file.nodes.filter((n) => !removedNodeIds.has(n.id)),
+        edges: file.edges.filter((e) => e.id !== edgeId && !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)),
+      };
+    });
+  },
+
+  removeEdges: (edgeIds) => {
+    if (edgeIds.length === 0) return;
+    pushUndo(get, set);
+    updateActiveFile(get, set, (file) => {
+      const removedEdgeIds = new Set(edgeIds);
+      const removedNodeIds = new Set(
+        file.nodes
+          .filter((n) => n.type === 'annotationNode' && removedEdgeIds.has(n.data.parentId))
+          .map((n) => n.id)
+      );
+      return {
+        ...file,
+        nodes: file.nodes.filter((n) => !removedNodeIds.has(n.id)),
+        edges: file.edges.filter((e) => !removedEdgeIds.has(e.id) && !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)),
+      };
     });
   },
 
   updateEdgeData: (edgeId, data) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            edges: canvas.edges.map((e) =>
-              e.id === edgeId ? { ...e, data: { ...e.data, ...data } } : e
-            ),
-          },
-        },
-      },
-    });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      edges: file.edges.map((e) =>
+        e.id === edgeId ? { ...e, data: { ...e.data, ...data } } : e
+      ),
+    }));
   },
 
   updateEdgeType: (edgeId, type) => {
     pushUndo(get, set);
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            edges: canvas.edges.map((e) =>
-              e.id === edgeId ? { ...e, data: { ...e.data, relationshipType: type } } : e
-            ),
-          },
-        },
-      },
-    });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      edges: file.edges.map((e) =>
+        e.id === edgeId ? { ...e, data: { ...e.data, relationshipType: type } } : e
+      ),
+    }));
   },
 
   setCanvasEdges: (edges) => {
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            edges,
-          },
-        },
-      },
-    });
+    const { activeFilePath, files } = get();
+    if (!activeFilePath) return;
+    const file = files[activeFilePath];
+    if (!file || file.edges === edges) return;
+    updateActiveFile(get, set, (f) => ({ ...f, edges }));
   },
 
   saveViewport: (viewport) => {
-    const { file, currentCanvasId } = get();
-    const canvas = file.canvases[currentCanvasId];
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [currentCanvasId]: {
-            ...canvas,
-            viewport,
-          },
-        },
-      },
-    });
+    const { activeFilePath, files } = get();
+    if (!activeFilePath) return;
+    const file = files[activeFilePath];
+    if (!file) return;
+    // Skip update if viewport hasn't changed to avoid dirtying the file
+    const v = file.viewport;
+    if (v && v.x === viewport.x && v.y === viewport.y && v.zoom === viewport.zoom) return;
+    updateActiveFile(get, set, (f) => ({ ...f, viewport }));
   },
 
   setSidebarOpen: (open) => {
@@ -569,66 +553,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ sidebarOpen: open });
   },
 
-  setFileHandle: (handle) => {
-    set({ fileHandle: handle });
-  },
-
-  markSaved: () => {
-    set({ lastSavedFile: get().file });
-  },
-
-  moveNodeToCanvas: (nodeId, fromCanvasId, toCanvasId, targetPosition) => {
-    if (fromCanvasId === toCanvasId) return;
-    const { file } = get();
-    const fromCanvas = file.canvases[fromCanvasId];
-    const toCanvas = file.canvases[toCanvasId];
-    if (!fromCanvas || !toCanvas) return;
-
-    const node = fromCanvas.nodes.find((n) => n.id === nodeId);
-    if (!node) return;
-
+  renameFile: (newName) => {
     pushUndo(get, set);
-
-    // Collect IDs to remove: the node + any child annotations
-    const removedIds = new Set([nodeId]);
-    for (const n of fromCanvas.nodes) {
-      if (n.type === 'annotationNode' && n.data.parentId === nodeId) {
-        removedIds.add(n.id);
-      }
-    }
-
-    const movedNode = { ...node, position: targetPosition ?? { x: 0, y: 0 } };
-
-    set({
-      file: {
-        ...file,
-        canvases: {
-          ...file.canvases,
-          [fromCanvasId]: {
-            ...fromCanvas,
-            nodes: fromCanvas.nodes.filter((n) => !removedIds.has(n.id)),
-            edges: fromCanvas.edges.filter(
-              (e) => !removedIds.has(e.source) && !removedIds.has(e.target)
-            ),
-          },
-          [toCanvasId]: {
-            ...toCanvas,
-            nodes: [...toCanvas.nodes, movedNode],
-          },
-        },
-      },
-    });
-  },
-
-  reorderCanvases: (orderedIds) => {
-    pushUndo(get, set);
-    const { file } = get();
-    const reordered: Record<string, typeof file.canvases[string]> = {};
-    for (const id of orderedIds) {
-      if (file.canvases[id]) {
-        reordered[id] = file.canvases[id];
-      }
-    }
-    set({ file: { ...file, canvases: reordered } });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      name: newName,
+    }));
   },
 }));
