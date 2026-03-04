@@ -51,3 +51,32 @@
 .context-menu-color-swatch:hover {
   border-color: var(--text-primary);
 }
+
+.context-menu-icon-row {
+  display: flex;
+  gap: 4px;
+  padding: 6px 16px;
+}
+
+.context-menu-icon-swatch {
+  width: 28px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.context-menu-icon-swatch:hover {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+.context-menu-icon-swatch.active {
+  border-color: var(--text-primary);
+  background: var(--bg-input);
+  color: var(--text-primary);
+}

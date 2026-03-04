@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import type { RelationshipType, Stereotype } from '../types/schema';
-import { ColorRow, StereotypeMenuItems } from './contextMenuItems';
+import { ColorRow, StereotypeMenuItems, BorderStyleRow, TextAlignRow } from './contextMenuItems';
 import './ContextMenu.css';
 
 const RELATIONSHIP_TYPES: RelationshipType[] = [
@@ -23,11 +23,18 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
   const ref = useRef<HTMLDivElement>(null);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
-  const addAnnotation = useCanvasStore((s) => s.addAnnotation);
+  const addTextNode = useCanvasStore((s) => s.addTextNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
   const updateEdgeType = useCanvasStore((s) => s.updateEdgeType);
   const groupSelectedNodes = useCanvasStore((s) => s.groupSelectedNodes);
+
+  const targetNodeData = useCanvasStore((s) => {
+    const fp = s.activeFilePath;
+    if (!fp || type !== 'node') return null;
+    const node = s.files[fp]?.nodes.find((n) => n.id === targetId);
+    return node?.data as Record<string, unknown> | null;
+  });
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -95,9 +102,26 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
 
   const handleAddComment = useCallback(() => {
     const flowPos = screenToFlowPosition({ x: x + 220, y });
-    addAnnotation(targetId, type === 'edge' ? 'edge' : 'node', flowPos.x, flowPos.y);
+    addTextNode(flowPos.x, flowPos.y, {
+      parentId: targetId,
+      parentType: type === 'edge' ? 'edge' : 'node',
+      color: '#F39C12',
+      borderStyle: 'dashed',
+      opacity: 0.85,
+      text: 'Comment',
+    });
     onClose();
-  }, [targetId, type, x, y, screenToFlowPosition, addAnnotation, onClose]);
+  }, [targetId, type, x, y, screenToFlowPosition, addTextNode, onClose]);
+
+  const handleBorderStyle = useCallback((style: string) => {
+    updateNodeData(targetId, { borderStyle: style });
+    onClose();
+  }, [targetId, updateNodeData, onClose]);
+
+  const handleTextAlign = useCallback((align: string) => {
+    updateNodeData(targetId, { textAlign: align });
+    onClose();
+  }, [targetId, updateNodeData, onClose]);
 
   const handleAddToGroup = useCallback(() => {
     if (selectedNodeRects && selectedNodeRects.length > 0) {
@@ -122,6 +146,20 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
           {type === 'node' && nodeType === 'classNode' && (
             <>
               <StereotypeMenuItems onSet={handleSetStereotype} />
+              <div className="context-menu-separator" />
+            </>
+          )}
+
+          {type === 'node' && nodeType === 'textNode' && (
+            <>
+              <BorderStyleRow
+                onSelect={handleBorderStyle}
+                current={(targetNodeData?.borderStyle as string) ?? 'solid'}
+              />
+              <TextAlignRow
+                onSelect={handleTextAlign}
+                current={(targetNodeData?.textAlign as string) ?? 'left'}
+              />
               <div className="context-menu-separator" />
             </>
           )}
