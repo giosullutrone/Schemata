@@ -165,17 +165,16 @@ describe('useCanvasStore', () => {
     expect(getFile()!.viewport).toEqual({ x: 100, y: 200, zoom: 1.5 });
   });
 
-  it('should add an annotation node with default color and connecting edge', () => {
-    const { addClassNode, addAnnotation } = useCanvasStore.getState();
+  it('should add a text node with connecting edge when parentId provided', () => {
+    const { addClassNode, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
     const nodeId = getFile()!.nodes[0].id;
-    addAnnotation(nodeId, 'node', 200, 0);
+    addTextNode(200, 0, { parentId: nodeId, parentType: 'node', color: '#F39C12', text: 'Comment' });
 
     const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(2);
-    expect(nodes[1].type).toBe('annotationNode');
-    expect(nodes[1].data.parentId).toBe(nodeId);
-    expect(nodes[1].data.comment).toBe('Comment');
+    expect(nodes[1].type).toBe('textNode');
+    expect(nodes[1].data.text).toBe('Comment');
     expect(nodes[1].data.color).toBe('#F39C12');
 
     const edges = getFile()!.edges;
@@ -185,39 +184,41 @@ describe('useCanvasStore', () => {
     expect(edges[0].data.relationshipType).toBe('association');
   });
 
-  it('should cascade delete annotations when parent node is removed', () => {
-    const { addClassNode, addAnnotation } = useCanvasStore.getState();
+  it('should NOT cascade delete text nodes when parent node is removed', () => {
+    const { addClassNode, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
     const nodeId = getFile()!.nodes[0].id;
-    addAnnotation(nodeId, 'node', 200, 0);
+    addTextNode(200, 0, { parentId: nodeId, parentType: 'node' });
 
     expect(getFile()!.nodes).toHaveLength(2);
     useCanvasStore.getState().removeNode(nodeId);
-    expect(getFile()!.nodes).toHaveLength(0);
+    expect(getFile()!.nodes).toHaveLength(1); // text node survives
+    expect(getFile()!.nodes[0].type).toBe('textNode');
   });
 
-  it('should cascade delete annotations when parent edge is removed', () => {
-    const { addClassNode, addEdge, addAnnotation } = useCanvasStore.getState();
+  it('should NOT cascade delete text nodes when parent edge is removed', () => {
+    const { addClassNode, addEdge, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
     const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
     const edgeId = getFile()!.edges[0].id;
 
-    addAnnotation(edgeId, 'edge', 200, 50);
+    addTextNode(200, 50, { parentId: edgeId, parentType: 'edge' });
     expect(getFile()!.nodes).toHaveLength(3);
 
     useCanvasStore.getState().removeEdge(edgeId);
-    expect(getFile()!.edges).toHaveLength(0);
-    expect(getFile()!.nodes).toHaveLength(2);
+    // removeEdge now only removes the edge, not connected text nodes or their edges
+    expect(getFile()!.edges).toHaveLength(1); // text node's edge to source node remains
+    expect(getFile()!.nodes).toHaveLength(3); // all nodes survive
   });
 
-  it('should add a standalone annotation (empty parentId) without a dangling edge', () => {
-    useCanvasStore.getState().addAnnotation('', 'node', 100, 200);
+  it('should add a standalone text node (no parentId) without a dangling edge', () => {
+    useCanvasStore.getState().addTextNode(100, 200);
     const nodes = getFile()!.nodes;
     expect(nodes).toHaveLength(1);
-    expect(nodes[0].type).toBe('annotationNode');
-    expect(nodes[0].data.parentId).toBe('');
+    expect(nodes[0].type).toBe('textNode');
+    expect(nodes[0].data.text).toBe('');
     expect(getFile()!.edges).toHaveLength(0);
   });
 
@@ -236,14 +237,14 @@ describe('useCanvasStore', () => {
     expect(stackAfter).toBe(stackBefore + 1);
   });
 
-  it('should update annotation node color', () => {
-    const { addClassNode, addAnnotation } = useCanvasStore.getState();
+  it('should update text node color', () => {
+    const { addClassNode, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
     const nodeId = getFile()!.nodes[0].id;
-    addAnnotation(nodeId, 'node', 200, 0);
-    const annotationId = getFile()!.nodes[1].id;
+    addTextNode(200, 0, { parentId: nodeId, parentType: 'node' });
+    const textNodeId = getFile()!.nodes[1].id;
 
-    useCanvasStore.getState().updateNodeData(annotationId, { color: '#E74C3C' });
+    useCanvasStore.getState().updateNodeData(textNodeId, { color: '#E74C3C' });
     const node = getFile()!.nodes[1];
     expect(node.data.color).toBe('#E74C3C');
   });
@@ -339,16 +340,17 @@ describe('useCanvasStore', () => {
     expect(useCanvasStore.getState()._undoStack.length).toBe(undoBefore + 1);
   });
 
-  it('should cascade-delete annotations when batch-removing parent nodes', () => {
-    const { addClassNode, addAnnotation } = useCanvasStore.getState();
+  it('should NOT cascade-delete text nodes when batch-removing parent nodes', () => {
+    const { addClassNode, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
     const nodes = getFile()!.nodes;
-    addAnnotation(nodes[0].id, 'node', 200, 0);
+    addTextNode(200, 0, { parentId: nodes[0].id, parentType: 'node' });
 
     expect(getFile()!.nodes).toHaveLength(3);
     useCanvasStore.getState().removeNodes([nodes[0].id, nodes[1].id]);
-    expect(getFile()!.nodes).toHaveLength(0);
+    expect(getFile()!.nodes).toHaveLength(1); // text node survives
+    expect(getFile()!.nodes[0].type).toBe('textNode');
   });
 
   it('should no-op removeNodes with empty array', () => {
@@ -374,19 +376,20 @@ describe('useCanvasStore', () => {
     expect(useCanvasStore.getState()._undoStack.length).toBe(undoBefore + 1);
   });
 
-  it('should cascade-delete annotations when batch-removing parent edges', () => {
-    const { addClassNode, addEdge, addAnnotation } = useCanvasStore.getState();
+  it('should NOT cascade-delete text nodes when batch-removing parent edges', () => {
+    const { addClassNode, addEdge, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
     addClassNode(100, 0);
     const nodes = getFile()!.nodes;
     addEdge(nodes[0].id, nodes[1].id, 'dependency');
     const edgeId = getFile()!.edges[0].id;
-    addAnnotation(edgeId, 'edge', 200, 50);
+    addTextNode(200, 50, { parentId: edgeId, parentType: 'edge' });
 
     expect(getFile()!.nodes).toHaveLength(3);
     useCanvasStore.getState().removeEdges([edgeId]);
-    expect(getFile()!.edges).toHaveLength(0);
-    expect(getFile()!.nodes).toHaveLength(2);
+    // removeEdges now only removes the specified edges
+    expect(getFile()!.edges).toHaveLength(1); // text node's edge to source node remains
+    expect(getFile()!.nodes).toHaveLength(3); // all nodes survive
   });
 
   it('should no-op removeEdges with empty array', () => {
@@ -479,7 +482,7 @@ describe('migrateFile', () => {
       version: '1.0',
       name: 'Test',
       nodes: [
-        { id: 'a1', type: 'annotationNode', position: { x: 0, y: 0 }, data: { comment: 'hi', parentId: 'c1', parentType: 'node' } },
+        { id: 't1', type: 'textNode', position: { x: 0, y: 0 }, data: { text: 'hi' } },
       ],
       edges: [],
     };

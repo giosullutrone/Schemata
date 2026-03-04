@@ -68,10 +68,10 @@ describe('removeEdge', () => {
     setup({
       nodes: [
         { id: 'class-1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
-        { id: 'annotation-1', type: 'annotationNode', position: { x: 200, y: 0 }, data: { comment: 'note', parentId: 'edge-1', parentType: 'edge', color: '#F39C12' } },
+        { id: 'text-1', type: 'textNode', position: { x: 200, y: 0 }, data: { text: 'note' } },
       ],
       edges: [
-        { id: 'edge-1', source: 'annotation-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
+        { id: 'edge-1', source: 'text-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
       ],
     });
   });
@@ -81,10 +81,10 @@ describe('removeEdge', () => {
     expect(getFile().edges).toHaveLength(0);
   });
 
-  it('should cascade delete annotation nodes attached to the edge', () => {
+  it('should NOT cascade delete text nodes when edge is removed', () => {
     useCanvasStore.getState().removeEdge('edge-1');
-    expect(getFile().nodes).toHaveLength(1); // only class-1 remains
-    expect(getFile().nodes[0].id).toBe('class-1');
+    expect(getFile().nodes).toHaveLength(2); // both class-1 and text-1 remain
+    expect(getFile().nodes.find((n) => n.id === 'text-1')).toBeDefined();
   });
 });
 
@@ -94,10 +94,10 @@ describe('removeEdges', () => {
       nodes: [
         { id: 'class-1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
         { id: 'class-2', type: 'classNode', position: { x: 200, y: 0 }, data: { name: 'B', properties: [], methods: [] } },
-        { id: 'annotation-1', type: 'annotationNode', position: { x: 300, y: 0 }, data: { comment: 'note', parentId: 'edge-1', parentType: 'edge', color: '#F39C12' } },
+        { id: 'text-1', type: 'textNode', position: { x: 300, y: 0 }, data: { text: 'note' } },
       ],
       edges: [
-        { id: 'edge-1', source: 'annotation-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
+        { id: 'edge-1', source: 'text-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
         { id: 'edge-2', source: 'class-1', target: 'class-2', type: 'uml', data: { relationshipType: 'dependency' } } as ClassEdgeSchema,
       ],
     });
@@ -108,10 +108,10 @@ describe('removeEdges', () => {
     expect(getFile().edges).toHaveLength(0);
   });
 
-  it('should cascade annotation nodes for batch removal', () => {
+  it('should NOT cascade text nodes for batch edge removal', () => {
     useCanvasStore.getState().removeEdges(['edge-1']);
     const nodes = getFile().nodes;
-    expect(nodes.find((n) => n.id === 'annotation-1')).toBeUndefined();
+    expect(nodes.find((n) => n.id === 'text-1')).toBeDefined();
     expect(nodes.find((n) => n.id === 'class-1')).toBeDefined();
   });
 
@@ -155,7 +155,7 @@ describe('updateEdgeType', () => {
 
 // ---- Node operations ----
 
-describe('addAnnotation', () => {
+describe('addTextNode', () => {
   beforeEach(() => {
     setup({
       nodes: [
@@ -164,21 +164,29 @@ describe('addAnnotation', () => {
     });
   });
 
-  it('should create annotation node and edge to parent', () => {
-    useCanvasStore.getState().addAnnotation('class-1', 'node', 320, 100);
+  it('should create standalone text node WITHOUT edge when no parentId', () => {
+    useCanvasStore.getState().addTextNode(320, 100);
     const file = getFile();
     expect(file.nodes).toHaveLength(2);
-    const annotation = file.nodes.find((n) => n.type === 'annotationNode');
-    expect(annotation).toBeDefined();
-    expect(annotation!.data.parentId).toBe('class-1');
-    expect(annotation!.data.parentType).toBe('node');
+    const textNode = file.nodes.find((n) => n.type === 'textNode');
+    expect(textNode).toBeDefined();
+    expect(textNode!.data.text).toBe('');
+    expect(file.edges).toHaveLength(0);
+  });
+
+  it('should create text node WITH edge when parentId provided', () => {
+    useCanvasStore.getState().addTextNode(320, 100, { parentId: 'class-1', parentType: 'node' });
+    const file = getFile();
+    expect(file.nodes).toHaveLength(2);
+    const textNode = file.nodes.find((n) => n.type === 'textNode');
+    expect(textNode).toBeDefined();
     expect(file.edges).toHaveLength(1);
-    expect(file.edges[0].source).toBe(annotation!.id);
+    expect(file.edges[0].source).toBe(textNode!.id);
     expect(file.edges[0].target).toBe('class-1');
   });
 
-  it('should use left handle when annotation is to the left of parent', () => {
-    useCanvasStore.getState().addAnnotation('class-1', 'node', 0, 100);
+  it('should use left handle when text node is to the left of parent', () => {
+    useCanvasStore.getState().addTextNode(0, 100, { parentId: 'class-1', parentType: 'node' });
     const edge = getFile().edges[0];
     expect(edge.sourceHandle).toBe('right');
     expect(edge.targetHandle).toBe('left');
@@ -220,18 +228,19 @@ describe('removeNode', () => {
     setup({
       nodes: [
         { id: 'class-1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
-        { id: 'annotation-1', type: 'annotationNode', position: { x: 200, y: 0 }, data: { comment: 'note', parentId: 'class-1', parentType: 'node', color: '#F39C12' } },
+        { id: 'text-1', type: 'textNode', position: { x: 200, y: 0 }, data: { text: 'note' } },
       ],
       edges: [
-        { id: 'edge-1', source: 'annotation-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
+        { id: 'edge-1', source: 'text-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
       ],
     });
   });
 
-  it('should cascade to child annotations and connected edges', () => {
+  it('should remove only the target node and connected edges, NOT cascade to text nodes', () => {
     useCanvasStore.getState().removeNode('class-1');
     const file = getFile();
-    expect(file.nodes).toHaveLength(0);
+    expect(file.nodes).toHaveLength(1); // text-1 survives
+    expect(file.nodes[0].id).toBe('text-1');
     expect(file.edges).toHaveLength(0);
   });
 });
@@ -242,21 +251,22 @@ describe('removeNodes', () => {
       nodes: [
         { id: 'class-1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
         { id: 'class-2', type: 'classNode', position: { x: 200, y: 0 }, data: { name: 'B', properties: [], methods: [] } },
-        { id: 'annotation-1', type: 'annotationNode', position: { x: 100, y: 100 }, data: { comment: 'note', parentId: 'class-1', parentType: 'node', color: '#F39C12' } },
+        { id: 'text-1', type: 'textNode', position: { x: 100, y: 100 }, data: { text: 'note' } },
       ],
       edges: [
         { id: 'edge-1', source: 'class-1', target: 'class-2', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
-        { id: 'edge-2', source: 'annotation-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
+        { id: 'edge-2', source: 'text-1', target: 'class-1', type: 'uml', data: { relationshipType: 'association' } } as ClassEdgeSchema,
       ],
     });
   });
 
-  it('should batch remove with cascade', () => {
+  it('should batch remove without cascade — text nodes survive parent deletion', () => {
     useCanvasStore.getState().removeNodes(['class-1']);
     const file = getFile();
-    expect(file.nodes).toHaveLength(1); // only class-2 remains
-    expect(file.nodes[0].id).toBe('class-2');
-    expect(file.edges).toHaveLength(0); // both edges removed
+    expect(file.nodes).toHaveLength(2); // class-2 and text-1 remain
+    expect(file.nodes.find((n) => n.id === 'class-2')).toBeDefined();
+    expect(file.nodes.find((n) => n.id === 'text-1')).toBeDefined();
+    expect(file.edges).toHaveLength(0); // both edges removed (connected to class-1)
   });
 
   it('should not push undo for empty array', () => {

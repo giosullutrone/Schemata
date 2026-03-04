@@ -15,7 +15,7 @@ import {
 
 let nextNodeId = 1;
 let nextEdgeId = 1;
-let nextAnnotationId = 1;
+let nextTextNodeId = 1;
 let nextGroupId = 1;
 let nextPropId = 1;
 let nextMethodId = 1;
@@ -28,8 +28,8 @@ function generateEdgeId(): string {
   return `edge-${nextEdgeId++}`;
 }
 
-function generateAnnotationId(): string {
-  return `annotation-${nextAnnotationId++}`;
+function generateTextNodeId(): string {
+  return `text-${nextTextNodeId++}`;
 }
 
 function generateGroupId(): string {
@@ -52,11 +52,11 @@ function parseIdSuffix(id: string): number {
 
 /** Sync all ID counters to be above the highest existing IDs across all files */
 function syncIdCounters(files: Record<string, CodeCanvasFile>) {
-  let maxNode = 0, maxEdge = 0, maxAnnotation = 0, maxGroup = 0, maxProp = 0, maxMethod = 0;
+  let maxNode = 0, maxEdge = 0, maxTextNode = 0, maxGroup = 0, maxProp = 0, maxMethod = 0;
   for (const file of Object.values(files)) {
     for (const node of file.nodes) {
       if (node.id.startsWith('class-')) maxNode = Math.max(maxNode, parseIdSuffix(node.id));
-      else if (node.id.startsWith('annotation-')) maxAnnotation = Math.max(maxAnnotation, parseIdSuffix(node.id));
+      else if (node.id.startsWith('text-')) maxTextNode = Math.max(maxTextNode, parseIdSuffix(node.id));
       else if (node.id.startsWith('group-')) maxGroup = Math.max(maxGroup, parseIdSuffix(node.id));
       if (node.type === 'classNode') {
         const d = node.data as { properties?: { id?: string }[]; methods?: { id?: string }[] };
@@ -74,7 +74,7 @@ function syncIdCounters(files: Record<string, CodeCanvasFile>) {
   }
   nextNodeId = maxNode + 1;
   nextEdgeId = maxEdge + 1;
-  nextAnnotationId = maxAnnotation + 1;
+  nextTextNodeId = maxTextNode + 1;
   nextGroupId = maxGroup + 1;
   nextPropId = maxProp + 1;
   nextMethodId = maxMethod + 1;
@@ -132,33 +132,61 @@ function updateActiveFile(
   set({ files: { ...files, [activeFilePath]: updated } });
 }
 
-/** Migrate older files: ensure all properties/methods have stable IDs */
+/** Migrate older files: ensure all properties/methods have stable IDs, annotationNode → textNode */
 export function migrateFile(file: CodeCanvasFile): CodeCanvasFile {
-  let needsMigration = false;
+  let changed = false;
+
+  // Check for classNode property/method ID migration
   for (const node of file.nodes) {
     if (node.type === 'classNode') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (node.data.properties.some((p: any) => !p.id) || node.data.methods.some((m: any) => !m.id)) {
-        needsMigration = true;
+        changed = true;
         break;
       }
     }
+    // Check for annotationNode → textNode migration
+    if ((node.type as string) === 'annotationNode') {
+      changed = true;
+    }
   }
-  if (!needsMigration) return file;
+
+  if (!changed) return file;
+
   return {
     ...file,
     nodes: file.nodes.map((node) => {
-      if (node.type !== 'classNode') return node;
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          properties: node.data.properties.map((p: any) => (p.id ? p : { ...p, id: generatePropId() })),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          methods: node.data.methods.map((m: any) => (m.id ? m : { ...m, id: generateMethodId() })),
-        },
-      };
+      // Migrate annotationNode → textNode
+      if ((node.type as string) === 'annotationNode') {
+        const oldData = node.data as Record<string, unknown>;
+        return {
+          ...node,
+          type: 'textNode' as CanvasNodeSchema['type'],
+          data: {
+            text: (oldData.comment as string) ?? '',
+            ...(oldData.color != null && { color: oldData.color }),
+            borderStyle: 'dashed',
+            opacity: 0.85,
+          } as unknown as typeof node.data,
+        };
+      }
+      // Migrate classNode property/method IDs
+      if (node.type === 'classNode') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const needsIds = node.data.properties.some((p: any) => !p.id) || node.data.methods.some((m: any) => !m.id);
+        if (!needsIds) return node;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            properties: node.data.properties.map((p: any) => (p.id ? p : { ...p, id: generatePropId() })),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            methods: node.data.methods.map((m: any) => (m.id ? m : { ...m, id: generateMethodId() })),
+          },
+        };
+      }
+      return node;
     }),
   };
 }
@@ -204,7 +232,14 @@ interface CanvasStore {
 
   // Node operations
   addClassNode: (x: number, y: number) => void;
-  addAnnotation: (parentId: string, parentType: 'node' | 'edge', x: number, y: number) => void;
+  addTextNode: (x: number, y: number, options?: {
+    parentId?: string;
+    parentType?: 'node' | 'edge';
+    color?: string;
+    borderStyle?: string;
+    opacity?: number;
+    text?: string;
+  }) => void;
   groupSelectedNodes: (rects: { id: string; x: number; y: number; w: number; h: number }[]) => void;
   removeNode: (nodeId: string) => void;
   removeNodes: (nodeIds: string[]) => void;
@@ -292,7 +327,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   reset: () => {
     nextNodeId = 1;
     nextEdgeId = 1;
-    nextAnnotationId = 1;
+    nextTextNodeId = 1;
     nextGroupId = 1;
     nextPropId = 1;
     nextMethodId = 1;
@@ -524,36 +559,37 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     });
   },
 
-  addAnnotation: (parentId, parentType, x, y) => {
+  addTextNode: (x, y, options) => {
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => {
-      const nodeId = generateAnnotationId();
-
-      let targetNodeId = parentId;
-      if (parentType === 'edge') {
-        const parentEdge = file.edges.find((e) => e.id === parentId);
-        if (parentEdge) targetNodeId = parentEdge.source;
-      }
-
-      const targetNode = file.nodes.find((n) => n.id === targetNodeId);
-      const isLeft = targetNode ? x < targetNode.position.x : false;
-      const sourceHandle = isLeft ? 'right' : 'left';
-      const targetHandle = isLeft ? 'left' : 'right';
+      const nodeId = generateTextNodeId();
+      const { parentId, parentType, color, borderStyle, opacity, text = '' } = options ?? {};
 
       const newNode = {
         id: nodeId,
-        type: 'annotationNode' as const,
+        type: 'textNode' as const,
         position: { x, y },
         data: {
-          comment: 'Comment',
-          parentId,
-          parentType,
-          color: '#F39C12',
+          text,
+          ...(color != null && { color }),
+          ...(borderStyle != null && { borderStyle }),
+          ...(opacity != null && { opacity }),
         },
       };
 
-      const newEdges = targetNodeId
-        ? [
+      let newEdges = file.edges;
+      if (parentId) {
+        let targetNodeId = parentId;
+        if (parentType === 'edge') {
+          const parentEdge = file.edges.find((e) => e.id === parentId);
+          if (parentEdge) targetNodeId = parentEdge.source;
+        }
+        const targetNode = file.nodes.find((n) => n.id === targetNodeId);
+        const isLeft = targetNode ? x < targetNode.position.x : false;
+        const sourceHandle = isLeft ? 'right' : 'left';
+        const targetHandle = isLeft ? 'left' : 'right';
+        if (targetNodeId) {
+          newEdges = [
             ...file.edges,
             {
               id: generateEdgeId(),
@@ -563,10 +599,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
               targetHandle,
               type: 'uml' as const,
               data: { relationshipType: 'association' as const },
-            } satisfies ClassEdgeSchema,
-          ]
-        : file.edges;
-
+            },
+          ];
+        }
+      }
       return { ...file, nodes: [...file.nodes, newNode], edges: newEdges };
     });
   },
@@ -597,19 +633,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
   removeNode: (nodeId) => {
     pushUndo(get, set);
-    updateActiveFile(get, set, (file) => {
-      const removedIds = new Set([nodeId]);
-      for (const n of file.nodes) {
-        if (n.type === 'annotationNode' && n.data.parentId === nodeId) {
-          removedIds.add(n.id);
-        }
-      }
-      return {
-        ...file,
-        nodes: file.nodes.filter((n) => !removedIds.has(n.id)),
-        edges: file.edges.filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target)),
-      };
-    });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      nodes: file.nodes.filter((n) => n.id !== nodeId),
+      edges: file.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+    }));
   },
 
   removeNodes: (nodeIds) => {
@@ -617,11 +645,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => {
       const removedIds = new Set(nodeIds);
-      for (const n of file.nodes) {
-        if (n.type === 'annotationNode' && removedIds.has(n.data.parentId)) {
-          removedIds.add(n.id);
-        }
-      }
       return {
         ...file,
         nodes: file.nodes.filter((n) => !removedIds.has(n.id)),
@@ -680,18 +703,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
   removeEdge: (edgeId) => {
     pushUndo(get, set);
-    updateActiveFile(get, set, (file) => {
-      const removedNodeIds = new Set(
-        file.nodes
-          .filter((n) => n.type === 'annotationNode' && n.data.parentId === edgeId)
-          .map((n) => n.id)
-      );
-      return {
-        ...file,
-        nodes: file.nodes.filter((n) => !removedNodeIds.has(n.id)),
-        edges: file.edges.filter((e) => e.id !== edgeId && !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)),
-      };
-    });
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      edges: file.edges.filter((e) => e.id !== edgeId),
+    }));
   },
 
   removeEdges: (edgeIds) => {
@@ -699,15 +714,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => {
       const removedEdgeIds = new Set(edgeIds);
-      const removedNodeIds = new Set(
-        file.nodes
-          .filter((n) => n.type === 'annotationNode' && removedEdgeIds.has(n.data.parentId))
-          .map((n) => n.id)
-      );
       return {
         ...file,
-        nodes: file.nodes.filter((n) => !removedNodeIds.has(n.id)),
-        edges: file.edges.filter((e) => !removedEdgeIds.has(e.id) && !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)),
+        edges: file.edges.filter((e) => !removedEdgeIds.has(e.id)),
       };
     });
   },
