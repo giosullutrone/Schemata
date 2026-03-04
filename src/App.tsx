@@ -20,7 +20,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ClassNode from './components/ClassNode';
-import AnnotationNode from './components/AnnotationNode';
+import TextNode from './components/TextNode';
 import GroupNode from './components/GroupNode';
 import { edgeTypes } from './components/edges';
 import Sidebar from './components/Sidebar';
@@ -33,7 +33,7 @@ import { useCanvasStore } from './store/useCanvasStore';
 import type { CanvasNodeSchema, ClassEdgeSchema, RelationshipType } from './types/schema';
 import type { ColorModeSetting, SnapMode } from './constants';
 
-const nodeTypes = { classNode: ClassNode, annotationNode: AnnotationNode, groupNode: GroupNode };
+const nodeTypes = { classNode: ClassNode, textNode: TextNode, groupNode: GroupNode };
 
 const DIRECTIONAL_HANDLES = new Set(['top', 'bottom', 'left', 'right']);
 
@@ -41,7 +41,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const activeFilePath = useCanvasStore((s) => s.activeFilePath);
   const activeFile = useCanvasStore((s) => s.activeFilePath ? s.files[s.activeFilePath] ?? null : null);
   const addClassNode = useCanvasStore((s) => s.addClassNode);
-  const addAnnotation = useCanvasStore((s) => s.addAnnotation);
+  const addTextNode = useCanvasStore((s) => s.addTextNode);
   const addEdge = useCanvasStore((s) => s.addEdge);
   const setCanvasNodes = useCanvasStore((s) => s.setCanvasNodes);
   const pushUndoSnapshot = useCanvasStore((s) => s.pushUndoSnapshot);
@@ -165,7 +165,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const folderName = useCanvasStore((s) => s.folderName);
   const files = useCanvasStore((s) => s.files);
 
-  // Keyboard shortcuts for node creation: N = new class, Shift+N = new annotation
+  // Keyboard shortcuts for node creation: N = new text node, Shift+N = new class
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'n' && e.key !== 'N') return;
@@ -177,14 +177,14 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       e.preventDefault();
       const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
       if (e.shiftKey) {
-        addAnnotation('', 'node', center.x, center.y);
-      } else {
         addClassNode(center.x, center.y);
+      } else {
+        addTextNode(center.x, center.y);
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [canvas, screenToFlowPosition, addClassNode, addAnnotation]);
+  }, [canvas, screenToFlowPosition, addClassNode, addTextNode]);
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -410,7 +410,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     groupDragContainedRef.current = null;
   }, []);
 
-  // Double-click on empty canvas: Shift+double-click creates comment, plain double-click creates class
+  // Double-click on empty canvas: plain double-click creates text node, Shift+double-click creates class
   const handlePaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
       // Only trigger on the pane itself, not on nodes or edges
@@ -418,12 +418,12 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       if (target.closest('.react-flow__node') || target.closest('.react-flow__edge')) return;
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       if (event.shiftKey) {
-        addAnnotation('', 'node', position.x, position.y);
-      } else {
         addClassNode(position.x, position.y);
+      } else {
+        addTextNode(position.x, position.y);
       }
     },
-    [screenToFlowPosition, addClassNode, addAnnotation]
+    [screenToFlowPosition, addClassNode, addTextNode]
   );
 
   const removeNodes = useCanvasStore((s) => s.removeNodes);
