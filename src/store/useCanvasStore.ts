@@ -4,6 +4,7 @@ import type {
   ClassEdgeData,
   ClassEdgeSchema,
   CanvasNodeSchema,
+  TextNodeSchema,
   RelationshipType,
 } from '../types/schema';
 import {
@@ -160,15 +161,16 @@ export function migrateFile(file: CodeCanvasFile): CodeCanvasFile {
       if ((node.type as string) === 'annotationNode') {
         const oldData = node.data as Record<string, unknown>;
         return {
-          ...node,
-          type: 'textNode' as CanvasNodeSchema['type'],
+          id: node.id,
+          type: 'textNode' as const,
+          position: node.position,
           data: {
             text: (oldData.comment as string) ?? '',
-            ...(oldData.color != null && { color: oldData.color }),
-            borderStyle: 'dashed',
+            ...(oldData.color != null && { color: oldData.color as string }),
+            borderStyle: 'dashed' as const,
             opacity: 0.85,
-          } as unknown as typeof node.data,
-        };
+          },
+        } satisfies TextNodeSchema;
       }
       // Migrate classNode property/method IDs
       if (node.type === 'classNode') {
@@ -236,7 +238,7 @@ interface CanvasStore {
     parentId?: string;
     parentType?: 'node' | 'edge';
     color?: string;
-    borderStyle?: string;
+    borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double' | 'none';
     opacity?: number;
     text?: string;
   }) => void;

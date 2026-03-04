@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { serializeFile, deserializeFile, validateFile } from './fileIO';
 import { migrateFile } from '../store/useCanvasStore';
-import type { CodeCanvasFile } from '../types/schema';
+import type { CodeCanvasFile, CanvasNodeSchema } from '../types/schema';
 
 const validFile: CodeCanvasFile = {
   version: '1.0',
@@ -185,10 +185,10 @@ describe('migrateFile — annotationNode to textNode', () => {
         { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } },
         {
           id: 'a1',
-          type: 'annotationNode' as unknown as 'textNode',
+          type: 'annotationNode',
           position: { x: 10, y: 10 },
-          data: { comment: 'hello world', parentId: 'c1', parentType: 'node', color: '#F39C12' } as unknown as CodeCanvasFile['nodes'][0]['data'],
-        },
+          data: { comment: 'hello world', parentId: 'c1', parentType: 'node', color: '#F39C12' },
+        } as unknown as CanvasNodeSchema,
       ],
       edges: [],
     };

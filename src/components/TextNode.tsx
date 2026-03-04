@@ -71,9 +71,9 @@ function TextNodeComponent({ id, data, selected }: NodeProps) {
           }}
         >
           {d.text ? (
-            <ReactMarkdown className="text-node-markdown" remarkPlugins={[remarkGfm]}>
-              {d.text}
-            </ReactMarkdown>
+            <div className="text-node-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{d.text}</ReactMarkdown>
+            </div>
           ) : (
             <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Double-click to edit...</span>
           )}
