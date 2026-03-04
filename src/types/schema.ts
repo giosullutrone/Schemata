@@ -46,19 +46,20 @@ export interface ClassNodeSchema {
   data: ClassNodeData;
 }
 
-export interface AnnotationNodeData {
+export interface TextNodeData {
   [key: string]: unknown;
-  comment: string;
-  parentId: string;
-  parentType: 'node' | 'edge';
+  text: string;
   color?: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double' | 'none';
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  opacity?: number;
 }
 
-export interface AnnotationNodeSchema {
+export interface TextNodeSchema {
   id: string;
-  type: 'annotationNode';
+  type: 'textNode';
   position: { x: number; y: number };
-  data: AnnotationNodeData;
+  data: TextNodeData;
 }
 
 export interface GroupNodeData {
@@ -75,7 +76,7 @@ export interface GroupNodeSchema {
   style?: { width: number; height: number };
 }
 
-export type CanvasNodeSchema = ClassNodeSchema | AnnotationNodeSchema | GroupNodeSchema;
+export type CanvasNodeSchema = ClassNodeSchema | TextNodeSchema | GroupNodeSchema;
 
 export interface ClassEdgeData {
   [key: string]: unknown;

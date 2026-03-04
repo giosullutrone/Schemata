@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type {
   CodeCanvasFile,
   GroupNodeSchema,
-  AnnotationNodeSchema,
+  TextNodeSchema,
 } from './schema';
 
 describe('Schema types', () => {
@@ -68,12 +68,12 @@ describe('Schema types', () => {
     expect(node.style?.width).toBe(400);
   });
 
-  it('should allow annotation node with color', () => {
-    const node: AnnotationNodeSchema = {
-      id: 'annotation-1',
-      type: 'annotationNode',
+  it('should allow text node with color', () => {
+    const node: TextNodeSchema = {
+      id: 'text-1',
+      type: 'textNode',
       position: { x: 0, y: 0 },
-      data: { comment: 'Note', parentId: 'class-1', parentType: 'node', color: '#F39C12' },
+      data: { text: 'Note', color: '#F39C12' },
     };
     expect(node.data.color).toBe('#F39C12');
   });
