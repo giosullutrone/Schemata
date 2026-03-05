@@ -1,5 +1,5 @@
 import { useCanvasStore } from '../store/useCanvasStore';
-import type { RelationshipType, ClassEdgeData } from '../types/schema';
+import type { RelationshipType, ClassEdgeData, CodeCanvasFile } from '../types/schema';
 
 interface BridgeRequest {
   id: string;
@@ -188,6 +188,16 @@ function handleAction(action: string, args: unknown[]): unknown {
       });
 
       return { nodes: matchingNodes, edges: matchingEdges };
+    }
+
+    case 'loadFolder': {
+      store.loadFolder(
+        args[0] as string,
+        args[1] as Record<string, CodeCanvasFile>,
+        args[2] as string[],
+        args[3] as string[],
+      );
+      return { success: true };
     }
 
     default:

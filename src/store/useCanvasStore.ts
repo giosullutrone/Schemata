@@ -245,6 +245,7 @@ interface CanvasStore {
   saveAllFiles: () => Promise<void>;
   removeFile: (filePath: string) => Promise<void>;
   moveFileToFolder: (sourcePath: string, targetFolderPath: string) => Promise<void>;
+  loadFolder: (name: string, files: Record<string, CodeCanvasFile>, imagePaths: string[], pdfPaths: string[]) => void;
   setPreviewImage: (path: string | null) => void;
   setPreviewPdf: (path: string | null) => void;
 
@@ -428,6 +429,28 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     } catch (err) {
       set({ _loading: false, _error: `Failed to open folder: ${(err as Error).message}` });
     }
+  },
+
+  loadFolder: (name, files, imagePaths, pdfPaths) => {
+    clearImageCache();
+    const firstPath = Object.keys(files).sort()[0] ?? null;
+    set({
+      folderHandle: null,
+      folderName: name,
+      files,
+      fileHandles: {},
+      activeFilePath: firstPath,
+      lastSavedFiles: structuredClone(files),
+      _dirtyFiles: {},
+      _undoStack: [],
+      _redoStack: [],
+      imagePaths,
+      pdfPaths,
+      previewImagePath: null,
+      previewPdfPath: null,
+      sidebarOpen: true,
+    });
+    syncIdCounters(files);
   },
 
   refreshFolder: async () => {

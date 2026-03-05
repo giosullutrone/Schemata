@@ -8,6 +8,7 @@ import { history } from './routes/history.js';
 import { layout } from './routes/layout.js';
 import { media } from './routes/media.js';
 import { schema } from './routes/schema.js';
+import { folder } from './routes/folder.js';
 
 const app = new Hono().basePath('/api');
 
@@ -22,6 +23,7 @@ app.route('/canvas', history);
 app.route('/files', files);
 app.route('/media', media);
 app.route('/schema', schema);
+app.route('/folder', folder);
 
 app.onError((err, c) => {
   console.error('[Canvas API]', err);
