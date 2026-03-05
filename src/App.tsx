@@ -186,6 +186,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const files = useCanvasStore((s) => s.files);
   const folderHandle = useCanvasStore((s) => s.folderHandle);
   const previewImagePath = useCanvasStore((s) => s.previewImagePath);
+  const previewPdfPath = useCanvasStore((s) => s.previewPdfPath);
 
   // Resolve preview image blob URL
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -200,6 +201,20 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     });
     return () => { cancelled = true; };
   }, [previewImagePath, folderHandle]);
+
+  // Resolve preview PDF blob URL
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!previewPdfPath || !folderHandle) {
+      setPreviewPdfUrl(null);
+      return;
+    }
+    let cancelled = false;
+    resolveImageUrl(folderHandle, '', previewPdfPath).then((url) => {
+      if (!cancelled) setPreviewPdfUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, [previewPdfPath, folderHandle]);
 
   // Keyboard shortcuts for node creation: N = new text node, Shift+N = new class
   useEffect(() => {
@@ -625,9 +640,9 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     [updateEdgeData]
   );
 
-  // Handle image drop from sidebar — create a text node with markdown image
+  // Handle image/PDF drop from sidebar — create a text node with markdown reference
   const handleDragOver = useCallback((event: React.DragEvent) => {
-    if (event.dataTransfer.types.includes('application/codecanvas-image')) {
+    if (event.dataTransfer.types.includes('application/codecanvas-image') || event.dataTransfer.types.includes('application/codecanvas-pdf')) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
     }
@@ -635,13 +650,13 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
-      const imagePath = event.dataTransfer.getData('application/codecanvas-image');
-      if (!imagePath) return;
+      const mediaPath = event.dataTransfer.getData('application/codecanvas-image') || event.dataTransfer.getData('application/codecanvas-pdf');
+      if (!mediaPath) return;
       event.preventDefault();
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      const fileName = imagePath.split('/').pop() ?? 'image';
+      const fileName = mediaPath.split('/').pop() ?? 'file';
       addTextNode(position.x, position.y, {
-        text: `![${fileName}](${imagePath})`,
+        text: `![${fileName}](${mediaPath})`,
       });
     },
     [screenToFlowPosition, addTextNode]
@@ -687,6 +702,40 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         >
           Copy markdown
         </button>
+      </div>
+    );
+  }
+
+  if (previewPdfPath) {
+    const fileName = previewPdfPath.split('/').pop() ?? previewPdfPath;
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        background: 'var(--bg-secondary)', overflow: 'hidden', padding: 24,
+      }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{previewPdfPath}</div>
+        {previewPdfUrl ? (
+          <embed
+            src={previewPdfUrl}
+            type="application/pdf"
+            style={{ flex: 1, width: '100%', borderRadius: 4, border: '1px solid var(--border-primary)' }}
+          />
+        ) : (
+          <div style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center' }}>Loading...</div>
+        )}
+        <div style={{ textAlign: 'center' }}>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(`![${fileName}](${previewPdfPath})`);
+            }}
+            style={{
+              marginTop: 12, padding: '4px 12px', border: '1px solid var(--border-primary)', borderRadius: 4,
+              background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12,
+            }}
+          >
+            Copy markdown
+          </button>
+        </div>
       </div>
     );
   }
@@ -748,6 +797,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         onDoubleClick={handlePaneDoubleClick}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
+        minZoom={0.1}
+        maxZoom={4}
         zoomOnDoubleClick={false}
         panOnDrag={[1]}
         selectionOnDrag

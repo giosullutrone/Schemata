@@ -98,10 +98,12 @@ export async function openFolder(): Promise<FileSystemDirectoryHandle | null> {
 
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg', '__pycache__', '.next', 'dist', 'build']);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
+const PDF_EXTENSIONS = new Set(['.pdf']);
 
 export interface ScanResult {
   files: ScannedFile[];
   imagePaths: string[];
+  pdfPaths: string[];
 }
 
 export async function scanFolder(
@@ -110,6 +112,7 @@ export async function scanFolder(
 ): Promise<ScanResult> {
   const files: ScannedFile[] = [];
   const imagePaths: string[] = [];
+  const pdfPaths: string[] = [];
   for await (const entry of dirHandle.values()) {
     const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
     if (entry.kind === 'directory') {
@@ -117,6 +120,7 @@ export async function scanFolder(
       const sub = await scanFolder(entry as FileSystemDirectoryHandle, entryPath);
       files.push(...sub.files);
       imagePaths.push(...sub.imagePaths);
+      pdfPaths.push(...sub.pdfPaths);
     } else if (entry.kind === 'file') {
       if (entry.name.endsWith('.codecanvas.json')) {
         const fileHandle = entry as FileSystemFileHandle;
@@ -133,15 +137,19 @@ export async function scanFolder(
         }
       } else {
         const dot = entry.name.lastIndexOf('.');
-        if (dot >= 0 && IMAGE_EXTENSIONS.has(entry.name.substring(dot).toLowerCase())) {
+        const ext = dot >= 0 ? entry.name.substring(dot).toLowerCase() : '';
+        if (IMAGE_EXTENSIONS.has(ext)) {
           imagePaths.push(entryPath);
+        } else if (PDF_EXTENSIONS.has(ext)) {
+          pdfPaths.push(entryPath);
         }
       }
     }
   }
   files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   imagePaths.sort();
-  return { files, imagePaths };
+  pdfPaths.sort();
+  return { files, imagePaths, pdfPaths };
 }
 
 export async function createFileInFolder(

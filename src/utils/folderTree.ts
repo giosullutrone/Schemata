@@ -20,11 +20,17 @@ export interface ImageTreeNode {
   relativePath: string;
 }
 
-export type TreeNode = FolderTreeNode | FileTreeNode | ImageTreeNode;
+export interface PdfTreeNode {
+  kind: 'pdf';
+  name: string;
+  relativePath: string;
+}
 
-export function buildFolderTree(files: Record<string, CodeCanvasFile>, imagePaths: string[] = []): TreeNode[] {
-  // Group files and images by their parent directory
-  const folderMap = new Map<string, (FileTreeNode | ImageTreeNode)[]>();
+export type TreeNode = FolderTreeNode | FileTreeNode | ImageTreeNode | PdfTreeNode;
+
+export function buildFolderTree(files: Record<string, CodeCanvasFile>, imagePaths: string[] = [], pdfPaths: string[] = []): TreeNode[] {
+  // Group files, images, and PDFs by their parent directory
+  const folderMap = new Map<string, (FileTreeNode | ImageTreeNode | PdfTreeNode)[]>();
 
   for (const [relativePath, file] of Object.entries(files)) {
     const lastSlash = relativePath.lastIndexOf('/');
@@ -54,6 +60,21 @@ export function buildFolderTree(files: Record<string, CodeCanvasFile>, imagePath
       kind: 'image',
       name,
       relativePath: imgPath,
+    });
+  }
+
+  for (const pdfPath of pdfPaths) {
+    const lastSlash = pdfPath.lastIndexOf('/');
+    const dirPath = lastSlash === -1 ? '' : pdfPath.substring(0, lastSlash);
+    const name = lastSlash === -1 ? pdfPath : pdfPath.substring(lastSlash + 1);
+
+    if (!folderMap.has(dirPath)) {
+      folderMap.set(dirPath, []);
+    }
+    folderMap.get(dirPath)!.push({
+      kind: 'pdf',
+      name,
+      relativePath: pdfPath,
     });
   }
 
@@ -90,8 +111,8 @@ export function buildFolderTree(files: Record<string, CodeCanvasFile>, imagePath
     const filesHere = folderMap.get(parentPath) ?? [];
     children.push(...filesHere);
 
-    // Sort: folders first, then canvas files, then images (alphabetical within each)
-    const kindOrder: Record<string, number> = { folder: 0, file: 1, image: 2 };
+    // Sort: folders first, then canvas files, then images, then PDFs (alphabetical within each)
+    const kindOrder: Record<string, number> = { folder: 0, file: 1, image: 2, pdf: 3 };
     children.sort((a, b) => {
       const ka = kindOrder[a.kind] ?? 3;
       const kb = kindOrder[b.kind] ?? 3;

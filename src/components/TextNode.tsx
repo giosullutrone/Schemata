@@ -9,11 +9,12 @@ import { useScrollBlockOnSelect } from '../hooks/useScrollBlockOnSelect';
 import type { TextNodeData } from '../types/schema';
 import './TextNode.css';
 
-function MarkdownImage({ src, alt, folderHandle, activeFilePath, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & {
+function MarkdownMedia({ src, alt, folderHandle, activeFilePath, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & {
   folderHandle: FileSystemDirectoryHandle | null;
   activeFilePath: string | null;
 }) {
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const isPdf = src?.toLowerCase().endsWith('.pdf');
 
   useEffect(() => {
     if (!src) return;
@@ -29,18 +30,21 @@ function MarkdownImage({ src, alt, folderHandle, activeFilePath, ...props }: Rea
     return () => { cancelled = true; };
   }, [src, folderHandle, activeFilePath]);
 
-  // Revoke blob URL on unmount to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (resolvedSrc && resolvedSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(resolvedSrc);
-      }
-    };
-  }, [resolvedSrc]);
-
   if (!resolvedSrc) {
-    return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>[{alt || 'image'}]</span>;
+    return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>[{alt || (isPdf ? 'pdf' : 'image')}]</span>;
   }
+
+  if (isPdf) {
+    return (
+      <embed
+        src={resolvedSrc}
+        type="application/pdf"
+        className="text-node-pdf"
+        title={alt || 'PDF document'}
+      />
+    );
+  }
+
   return <img src={resolvedSrc} alt={alt} {...props} />;
 }
 
@@ -49,6 +53,7 @@ function TextNodeComponent({ id, data, selected, isConnectable }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const folderHandle = useCanvasStore((s) => s.folderHandle);
   const activeFilePath = useCanvasStore((s) => s.activeFilePath);
+  const shouldEdit = useCanvasStore((s) => s.editingNodeId === id);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(d.text);
@@ -56,6 +61,15 @@ function TextNodeComponent({ id, data, selected, isConnectable }: NodeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const blockPan = useScrollBlockOnSelect(containerRef, contentRef, selected);
+
+  // Trigger editing from context menu
+  useEffect(() => {
+    if (shouldEdit) {
+      setDraft(d.text);
+      setEditing(true);
+      useCanvasStore.getState().setEditingNodeId(null);
+    }
+  }, [shouldEdit, d.text]);
 
   // Sync draft from store when not editing (e.g. after undo/redo)
   useEffect(() => {
@@ -90,7 +104,7 @@ function TextNodeComponent({ id, data, selected, isConnectable }: NodeProps) {
       </a>
     ),
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-      <MarkdownImage src={src} alt={alt} folderHandle={folderHandle} activeFilePath={activeFilePath} {...props} />
+      <MarkdownMedia src={src} alt={alt} folderHandle={folderHandle} activeFilePath={activeFilePath} {...props} />
     ),
   }), [folderHandle, activeFilePath]);
 

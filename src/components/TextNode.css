@@ -28,6 +28,8 @@
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
 }
 
 .text-node-textarea {
@@ -47,6 +49,10 @@
 /* Markdown styles */
 .text-node-markdown {
   line-height: 1.5;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .text-node-markdown h1 { font-size: 1.6em; font-weight: 700; margin: 0.3em 0; }
@@ -112,6 +118,30 @@
 
 .text-node-markdown img {
   max-width: 100%;
+  border-radius: 4px;
+}
+
+.text-node-markdown > p:has(.text-node-pdf) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+}
+
+.text-node:not(.selected) .text-node-content {
+  overflow-y: hidden;
+}
+
+.text-node:not(.selected) .text-node-pdf {
+  pointer-events: none;
+}
+
+.text-node-markdown .text-node-pdf {
+  flex: 1;
+  width: 100%;
+  min-height: 200px;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
 }
 

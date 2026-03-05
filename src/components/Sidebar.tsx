@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, type KeyboardEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
-import { buildFolderTree, type TreeNode, type FolderTreeNode, type FileTreeNode, type ImageTreeNode } from '../utils/folderTree';
+import { buildFolderTree, type TreeNode, type FolderTreeNode, type FileTreeNode, type ImageTreeNode, type PdfTreeNode } from '../utils/folderTree';
 import { ColorRow, StereotypeMenuItems } from './contextMenuItems';
 import './Sidebar.css';
 
@@ -65,6 +65,9 @@ export default function Sidebar() {
   const imagePaths = useCanvasStore((s) => s.imagePaths);
   const previewImagePath = useCanvasStore((s) => s.previewImagePath);
   const setPreviewImage = useCanvasStore((s) => s.setPreviewImage);
+  const pdfPaths = useCanvasStore((s) => s.pdfPaths);
+  const previewPdfPath = useCanvasStore((s) => s.previewPdfPath);
+  const setPreviewPdf = useCanvasStore((s) => s.setPreviewPdf);
   const loading = useCanvasStore((s) => s._loading);
   const error = useCanvasStore((s) => s._error);
 
@@ -84,7 +87,7 @@ export default function Sidebar() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Build folder tree from flat file map
-  const tree = useMemo(() => buildFolderTree(files, imagePaths), [files, imagePaths]);
+  const tree = useMemo(() => buildFolderTree(files, imagePaths, pdfPaths), [files, imagePaths, pdfPaths]);
 
   // Filter tree nodes by search query
   const filteredTree = useMemo(() => {
@@ -93,7 +96,7 @@ export default function Sidebar() {
 
     function matchesSearch(node: TreeNode): boolean {
       if (node.kind === 'folder') return node.name.toLowerCase().includes(q) || node.children.some(matchesSearch);
-      if (node.kind === 'image') return node.name.toLowerCase().includes(q);
+      if (node.kind === 'image' || node.kind === 'pdf') return node.name.toLowerCase().includes(q);
       // file node: match file name or any node display name inside
       if (node.name.toLowerCase().includes(q)) return true;
       const fileData = files[node.relativePath];
@@ -208,11 +211,11 @@ export default function Sidebar() {
   // --- File click: activate file ---
   const handleFileClick = useCallback(
     (filePath: string) => {
-      if (filePath === activeFilePath && !previewImagePath) return;
+      if (filePath === activeFilePath && !previewImagePath && !previewPdfPath) return;
       saveViewport(getViewport());
       setActiveFile(filePath);
     },
-    [activeFilePath, previewImagePath, setActiveFile, saveViewport, getViewport]
+    [activeFilePath, previewImagePath, previewPdfPath, setActiveFile, saveViewport, getViewport]
   );
 
   // --- Node click: pan + select ---
@@ -249,11 +252,13 @@ export default function Sidebar() {
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
-    kind: 'folder' | 'file' | 'node' | 'image';
+    kind: 'folder' | 'file' | 'node' | 'image' | 'pdf';
     folderPath?: string;
     filePath?: string;
     imagePath?: string;
     imageName?: string;
+    pdfPath?: string;
+    pdfName?: string;
     nodeId?: string;
     nodeType?: string;
   } | null>(null);
@@ -307,6 +312,7 @@ export default function Sidebar() {
     return nodes.map((node) => {
       if (node.kind === 'folder') return renderFolder(node, depth);
       if (node.kind === 'image') return renderImageNode(node, depth);
+      if (node.kind === 'pdf') return renderPdfNode(node, depth);
       return renderFileNode(node, depth);
     });
   }
@@ -368,19 +374,19 @@ export default function Sidebar() {
           draggable
           onDragStart={(e) => handleDragStart(e, file.relativePath)}
           onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('application/codecanvas-image')) {
+            if (e.dataTransfer.types.includes('application/codecanvas-image') || e.dataTransfer.types.includes('application/codecanvas-pdf')) {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'copy';
             }
           }}
           onDrop={(e) => {
-            const imagePath = e.dataTransfer.getData('application/codecanvas-image');
-            if (imagePath) {
+            const mediaPath = e.dataTransfer.getData('application/codecanvas-image') || e.dataTransfer.getData('application/codecanvas-pdf');
+            if (mediaPath) {
               e.preventDefault();
               handleFileClick(file.relativePath);
-              const fileName = imagePath.split('/').pop() ?? 'image';
+              const fileName = mediaPath.split('/').pop() ?? 'file';
               setTimeout(() => {
-                useCanvasStore.getState().addTextNode(0, 0, { text: `![${fileName}](${imagePath})` });
+                useCanvasStore.getState().addTextNode(0, 0, { text: `![${fileName}](${mediaPath})` });
               }, 0);
             }
           }}
@@ -463,6 +469,32 @@ export default function Sidebar() {
     );
   }
 
+  function renderPdfNode(pdf: PdfTreeNode, depth: number) {
+    const isActive = pdf.relativePath === previewPdfPath;
+    return (
+      <div
+        key={`pdf:${pdf.relativePath}`}
+        className={`sidebar-file-row sidebar-image-row${isActive ? ' active' : ''}`}
+        style={{ paddingLeft: 10 + depth * 16 }}
+        draggable
+        onDragStart={(e) => {
+          handleDragStart(e, pdf.relativePath);
+          e.dataTransfer.setData('application/codecanvas-pdf', pdf.relativePath);
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }}
+        onClick={() => setPreviewPdf(pdf.relativePath)}
+        title={`Click to preview. Right-click for options.`}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'pdf', pdfPath: pdf.relativePath, pdfName: pdf.name });
+        }}
+      >
+        <span className="sidebar-file-icon">{'\uD83D\uDCC4'}</span>
+        <span className="sidebar-canvas-name">{pdf.name}</span>
+      </div>
+    );
+  }
+
   // --- Collapsed sidebar ---
   if (!sidebarOpen) {
     return (
@@ -473,7 +505,7 @@ export default function Sidebar() {
   }
 
   const hasFolderOpen = folderName !== null;
-  const hasFiles = Object.keys(files).length > 0 || imagePaths.length > 0;
+  const hasFiles = Object.keys(files).length > 0 || imagePaths.length > 0 || pdfPaths.length > 0;
 
   return (
     <>
@@ -692,6 +724,18 @@ export default function Sidebar() {
               className="context-menu-item"
               onClick={() => {
                 navigator.clipboard.writeText(`![${ctxMenu.imageName ?? ''}](${ctxMenu.imagePath!})`);
+                setCtxMenu(null);
+              }}
+            >
+              Copy as markdown
+            </div>
+          )}
+
+          {ctxMenu.kind === 'pdf' && ctxMenu.pdfPath && (
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                navigator.clipboard.writeText(`![${ctxMenu.pdfName ?? ''}](${ctxMenu.pdfPath!})`);
                 setCtxMenu(null);
               }}
             >

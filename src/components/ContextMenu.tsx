@@ -28,6 +28,7 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
   const updateEdgeType = useCanvasStore((s) => s.updateEdgeType);
   const groupSelectedNodes = useCanvasStore((s) => s.groupSelectedNodes);
+  const setEditingNodeId = useCanvasStore((s) => s.setEditingNodeId);
 
   const targetNodeData = useCanvasStore((s) => {
     const fp = s.activeFilePath;
@@ -152,6 +153,10 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
 
           {type === 'node' && nodeType === 'textNode' && (
             <>
+              <div className="context-menu-item" role="menuitem" onClick={() => { setEditingNodeId(targetId); onClose(); }}>
+                Edit
+              </div>
+              <div className="context-menu-separator" />
               <BorderStyleRow
                 onSelect={handleBorderStyle}
                 current={(targetNodeData?.borderStyle as string) ?? 'solid'}

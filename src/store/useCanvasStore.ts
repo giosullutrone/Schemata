@@ -218,8 +218,16 @@ interface CanvasStore {
   imagePaths: string[];
   previewImagePath: string | null;
 
+  // PDF files discovered in folder
+  pdfPaths: string[];
+  previewPdfPath: string | null;
+
   // Sidebar
   sidebarOpen: boolean;
+
+  // Editing
+  editingNodeId: string | null;
+  setEditingNodeId: (id: string | null) => void;
 
   // Undo/Redo
   undo: () => void;
@@ -238,6 +246,7 @@ interface CanvasStore {
   removeFile: (filePath: string) => Promise<void>;
   moveFileToFolder: (sourcePath: string, targetFolderPath: string) => Promise<void>;
   setPreviewImage: (path: string | null) => void;
+  setPreviewPdf: (path: string | null) => void;
 
   // Node operations
   addClassNode: (x: number, y: number) => void;
@@ -290,8 +299,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   _dirtyFiles: {},
   imagePaths: [],
   previewImagePath: null,
+  pdfPaths: [],
+  previewPdfPath: null,
   _loading: false,
   _error: null,
+  editingNodeId: null,
   sidebarOpen: (() => {
     try {
       const stored = localStorage.getItem('codecanvas-sidebar-open');
@@ -358,6 +370,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       _dirtyFiles: {},
       imagePaths: [],
       previewImagePath: null,
+      pdfPaths: [],
+      previewPdfPath: null,
+      editingNodeId: null,
       _loading: false,
       _error: null,
       sidebarOpen: true,
@@ -394,6 +409,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         lastSavedFiles: lastSaved,
         imagePaths: scanResult.imagePaths,
         previewImagePath: null,
+        pdfPaths: scanResult.pdfPaths,
+        previewPdfPath: null,
         _dirtyFiles: {},
         activeFilePath: firstPath,
         _undoStack: [],
@@ -435,6 +452,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         fileHandles: nextHandles,
         lastSavedFiles: nextSaved,
         imagePaths: scanResult.imagePaths,
+        pdfPaths: scanResult.pdfPaths,
         _dirtyFiles: nextDirty,
         activeFilePath: nextActive,
         _loading: false,
@@ -445,11 +463,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   setActiveFile: (filePath) => {
-    set({ activeFilePath: filePath, previewImagePath: null });
+    set({ activeFilePath: filePath, previewImagePath: null, previewPdfPath: null });
   },
 
   setPreviewImage: (path) => {
-    set({ previewImagePath: path, ...(path ? { activeFilePath: null } : {}) });
+    set({ previewImagePath: path, ...(path ? { activeFilePath: null, previewPdfPath: null } : {}) });
+  },
+
+  setPreviewPdf: (path) => {
+    set({ previewPdfPath: path, ...(path ? { activeFilePath: null, previewImagePath: null } : {}) });
   },
 
   createFile: async (folderRelativePath, displayName) => {
@@ -648,7 +670,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           _redoStack: state._redoStack.map((e) => e.filePath === sourcePath ? { ...e, filePath: newPath } : e),
         });
       } else {
-        // Image: copy raw bytes
+        // Image/PDF: copy raw bytes
         const srcFileHandle = await srcDir.getFileHandle(fileName);
         const srcFile = await srcFileHandle.getFile();
         const content = await srcFile.arrayBuffer();
@@ -659,14 +681,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         await writable.close();
         await srcDir.removeEntry(fileName);
 
-        const newImagePaths = state.imagePaths.filter((p) => p !== sourcePath);
-        newImagePaths.push(newPath);
-        newImagePaths.sort();
-
-        set({
-          imagePaths: newImagePaths,
-          previewImagePath: state.previewImagePath === sourcePath ? newPath : state.previewImagePath,
-        });
+        const isPdf = state.pdfPaths.includes(sourcePath);
+        if (isPdf) {
+          const newPdfPaths = state.pdfPaths.filter((p) => p !== sourcePath);
+          newPdfPaths.push(newPath);
+          newPdfPaths.sort();
+          set({
+            pdfPaths: newPdfPaths,
+            previewPdfPath: state.previewPdfPath === sourcePath ? newPath : state.previewPdfPath,
+          });
+        } else {
+          const newImagePaths = state.imagePaths.filter((p) => p !== sourcePath);
+          newImagePaths.push(newPath);
+          newImagePaths.sort();
+          set({
+            imagePaths: newImagePaths,
+            previewImagePath: state.previewImagePath === sourcePath ? newPath : state.previewImagePath,
+          });
+        }
       }
     } catch (err) {
       set({ _error: `Failed to move file: ${(err as Error).message}` });
@@ -895,6 +927,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     try { localStorage.setItem('codecanvas-sidebar-open', String(open)); } catch { /* storage unavailable */ }
     set({ sidebarOpen: open });
   },
+
+  setEditingNodeId: (id) => set({ editingNodeId: id }),
 
   clearError: () => set({ _error: null }),
 
