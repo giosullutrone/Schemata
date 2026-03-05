@@ -20,6 +20,32 @@ function getEdgeById(id: string) {
   return getActiveFile()?.edges.find((e) => e.id === id) ?? null;
 }
 
+function wildcardMatchBrowser(text: string, pattern: string): boolean {
+  const t = text.toLowerCase();
+  const p = pattern.toLowerCase();
+  const regex = new RegExp(
+    '^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
+  );
+  return regex.test(t);
+}
+
+function nodeMatchesQuery(node: { type: string; data: Record<string, unknown> }, query: string): boolean {
+  if (node.type === 'classNode') {
+    const d = node.data as { name?: string; properties?: Array<{ name: string }>; methods?: Array<{ name: string }> };
+    if (wildcardMatchBrowser(d.name ?? '', query)) return true;
+    if (d.properties?.some((p) => wildcardMatchBrowser(p.name, query))) return true;
+    if (d.methods?.some((m) => wildcardMatchBrowser(m.name, query))) return true;
+    return false;
+  }
+  if (node.type === 'textNode') {
+    return wildcardMatchBrowser((node.data as { text?: string }).text ?? '', query);
+  }
+  if (node.type === 'groupNode') {
+    return wildcardMatchBrowser((node.data as { label?: string }).label ?? '', query);
+  }
+  return false;
+}
+
 function handleAction(action: string, args: unknown[]): unknown {
   const store = useCanvasStore.getState();
   const file = getActiveFile();
@@ -142,6 +168,26 @@ function handleAction(action: string, args: unknown[]): unknown {
       );
       const after = getActiveFile()?.nodes ?? [];
       return after.length > before ? after[after.length - 1] : null;
+    }
+
+    // ── Search ──
+    case 'search': {
+      const query = args[0] as string;
+      const typeFilter = args[1] as string | undefined;
+      const nodes = file?.nodes ?? [];
+      const edges = file?.edges ?? [];
+
+      const matchingNodes = nodes.filter((n) => {
+        if (typeFilter && n.type !== typeFilter) return false;
+        return nodeMatchesQuery(n as { type: string; data: Record<string, unknown> }, query);
+      });
+
+      const matchingEdges = edges.filter((e) => {
+        const label = (e.data as { label?: string })?.label ?? '';
+        return wildcardMatchBrowser(label, query);
+      });
+
+      return { nodes: matchingNodes, edges: matchingEdges };
     }
 
     default:
