@@ -58,7 +58,9 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 
 **classNode** — Created with `type: "classNode"`. Always starts as `name: "NewClass"` with empty properties/methods. Update via PATCH.
 
-**textNode** — Created with `type: "textNode"`. Optional extra fields: `text`, `color`, `borderStyle`, `opacity`, `parentId`, `parentType`.
+**textNode** — Created with `type: "textNode"`. Optional extra fields: `text`, `color`, `borderStyle`, `opacity`, `parentId` (node to connect to), `parentType` (`"classNode"` or `"groupNode"`).
+
+**groupNode** — Created only via `POST /api/canvas/layout/group` (not directly via POST /api/canvas/nodes). Groups visually contain other nodes.
 
 **classNode data shape:**
 ```json
@@ -149,6 +151,8 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 
 ## Example Workflows
 
+**Important:** POST responses return the created object with its auto-generated ID. Always read the `id` from the response before using it in subsequent calls. Examples below use `class-1` etc. for readability — in practice, capture the ID from the response.
+
 ### 1. Create a class with properties and methods
 
 ```bash
@@ -157,8 +161,9 @@ curl -s -X POST http://localhost:5173/api/canvas/nodes \
   -H 'Content-Type: application/json' \
   -d '{"type":"classNode","x":200,"y":100}'
 # Response: { "data": { "id": "class-1", ... } }
+# Use the returned ID for subsequent calls
 
-# Add properties and methods
+# Add properties and methods (using the ID from above)
 curl -s -X PATCH http://localhost:5173/api/canvas/nodes/class-1 \
   -H 'Content-Type: application/json' \
   -d '{
