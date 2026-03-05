@@ -1,6 +1,7 @@
 import type { Plugin, ViteDevServer } from 'vite';
 import type { IncomingMessage } from 'node:http';
 import { app } from './app.js';
+import { initBridge } from './bridge.js';
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
@@ -14,6 +15,8 @@ export default function canvasApiPlugin(): Plugin {
   return {
     name: 'canvas-api',
     configureServer(server: ViteDevServer) {
+      initBridge(server.ws);
+
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api')) return next();
 
