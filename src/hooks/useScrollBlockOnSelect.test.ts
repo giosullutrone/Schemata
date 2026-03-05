@@ -13,16 +13,16 @@ vi.mock('@xyflow/react', () => ({
   },
 }));
 
-let roCallback: ResizeObserverCallback | null = null;
+const roState = { callback: null as ResizeObserverCallback | null };
 
 class MockResizeObserver {
   constructor(cb: ResizeObserverCallback) {
-    roCallback = cb;
+    roState.callback = cb;
   }
   observe() {}
   unobserve() {}
   disconnect() {
-    roCallback = null;
+    roState.callback = null;
   }
 }
 
@@ -50,7 +50,7 @@ function makeEl(scrollHeight: number, clientHeight: number): HTMLElement {
 describe('useScrollBlockOnSelect', () => {
   beforeEach(() => {
     mockSelectedCount = 0;
-    roCallback = null;
+    roState.callback = null;
     vi.stubGlobal('ResizeObserver', MockResizeObserver);
     vi.stubGlobal('MutationObserver', MockMutationObserver);
   });

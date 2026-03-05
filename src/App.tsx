@@ -226,7 +226,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       if (isEditing) return;
       if (!canvas) return;
       e.preventDefault();
-      const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const sidebarWidth = useCanvasStore.getState().sidebarOpen ? 240 : 0;
+      const center = screenToFlowPosition({ x: (window.innerWidth + sidebarWidth) / 2, y: window.innerHeight / 2 });
       if (e.shiftKey) {
         addClassNode(center.x, center.y);
       } else {
@@ -252,8 +253,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         return;
       }
 
-      // Ctrl+C — copy selected nodes + connecting edges
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.shiftKey) {
+      // Ctrl+C / Ctrl+X — copy/cut selected nodes + connecting edges
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x') && !e.shiftKey) {
         const rfNodes = getNodes();
         const selected = rfNodes.filter((n) => n.selected);
         if (selected.length === 0) return;
@@ -262,6 +263,49 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         const storeNodes = canvas.nodes.filter((n) => selectedIds.has(n.id));
         const storeEdges = canvas.edges.filter((e) => selectedIds.has(e.source) && selectedIds.has(e.target));
         clipboardRef.current = { nodes: JSON.parse(JSON.stringify(storeNodes)), edges: JSON.parse(JSON.stringify(storeEdges)) };
+        if (e.key === 'x') {
+          const removeNodes = useCanvasStore.getState().removeNodes;
+          removeNodes(selected.map((n) => n.id));
+        }
+        return;
+      }
+
+      // Ctrl+D — duplicate selected nodes with offset
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        const rfNodes = getNodes();
+        const selected = rfNodes.filter((n) => n.selected);
+        if (selected.length === 0) return;
+        e.preventDefault();
+        pushUndoSnapshot();
+        const selectedIds = new Set(selected.map((n) => n.id));
+        const storeNodes = canvas.nodes.filter((n) => selectedIds.has(n.id));
+        const storeEdges = canvas.edges.filter((e) => selectedIds.has(e.source) && selectedIds.has(e.target));
+        const idMap = new Map<string, string>();
+        const store = useCanvasStore.getState();
+        const af = store.activeFilePath;
+        if (!af) return;
+        const file = store.files[af];
+        if (!file) return;
+        const offset = 30;
+        const newNodes: CanvasNodeSchema[] = storeNodes.map((n) => {
+          const newId = `${n.type === 'classNode' ? 'class' : n.type === 'textNode' ? 'text' : 'group'}-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          idMap.set(n.id, newId);
+          return { ...n, id: newId, position: { x: n.position.x + offset, y: n.position.y + offset } };
+        });
+        const newEdges: ClassEdgeSchema[] = storeEdges
+          .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+          .map((e) => ({
+            ...e,
+            id: `edge-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            source: idMap.get(e.source)!,
+            target: idMap.get(e.target)!,
+          }));
+        setCanvasNodes([...file.nodes, ...newNodes]);
+        setCanvasEdges([...file.edges, ...newEdges]);
+        setTimeout(() => {
+          const dupIds = new Set(newNodes.map((n) => n.id));
+          setNodes((nodes) => nodes.map((n) => ({ ...n, selected: dupIds.has(n.id) })));
+        }, 0);
         return;
       }
 
@@ -335,8 +379,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      // Prevent self-loop edges (e.g. from a property handle back to the same node)
       if (connection.source === connection.target) return;
+
       addEdge(
         connection.source,
         connection.target,
@@ -947,6 +991,7 @@ function App() {
       a.download = `${fileName}.${format}`;
       a.href = dataUrl;
       a.click();
+      store.showInfo(`Exported as ${format.toUpperCase()}`);
     }).catch((err) => {
       useCanvasStore.setState({ _error: `Export failed: ${(err as Error).message}` });
     });

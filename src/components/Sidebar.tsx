@@ -240,7 +240,8 @@ export default function Sidebar() {
         );
       };
       if (needsSwitch) {
-        setTimeout(pan, 50);
+        // Double rAF ensures React has committed and the browser has painted
+        requestAnimationFrame(() => requestAnimationFrame(pan));
       } else {
         pan();
       }

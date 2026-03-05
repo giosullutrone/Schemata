@@ -118,10 +118,10 @@ function TextNodeComponent({ id, data, selected, isConnectable }: NodeProps) {
   return (
     <div ref={containerRef} className={`text-node${selected ? ' selected' : ''}${blockPan ? ' nowheel' : ''}`} style={nodeStyle}>
       <NodeResizer isVisible={!!selected} minWidth={120} minHeight={40} />
-      <Handle type="target" position={Position.Top} id="top" className="text-node-sub-handle" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Top} id="top" className="text-node-sub-handle" isConnectable={isConnectable} />
       <Handle type="source" position={Position.Right} id="right" className="text-node-sub-handle" isConnectable={isConnectable} />
       <Handle type="source" position={Position.Bottom} id="bottom" className="text-node-sub-handle" isConnectable={isConnectable} />
-      <Handle type="target" position={Position.Left} id="left" className="text-node-sub-handle" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Left} id="left" className="text-node-sub-handle" isConnectable={isConnectable} />
       {editing ? (
         <textarea
           ref={textareaRef}

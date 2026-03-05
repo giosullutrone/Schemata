@@ -259,6 +259,8 @@ interface CanvasStore {
     text?: string;
   }) => void;
   groupSelectedNodes: (rects: { id: string; x: number; y: number; w: number; h: number }[]) => void;
+  alignNodes: (rects: { id: string; x: number; y: number; w: number; h: number }[], alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
+  distributeNodes: (rects: { id: string; x: number; y: number; w: number; h: number }[], axis: 'horizontal' | 'vertical') => void;
   removeNode: (nodeId: string) => void;
   removeNodes: (nodeIds: string[]) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
@@ -284,7 +286,10 @@ interface CanvasStore {
   // Status
   _loading: boolean;
   _error: string | null;
+  _info: string | null;
   clearError: () => void;
+  showInfo: (msg: string) => void;
+  clearInfo: () => void;
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -303,6 +308,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   previewPdfPath: null,
   _loading: false,
   _error: null,
+  _info: null,
   editingNodeId: null,
   sidebarOpen: (() => {
     try {
@@ -375,6 +381,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       editingNodeId: null,
       _loading: false,
       _error: null,
+      _info: null,
       sidebarOpen: true,
     });
   },
@@ -416,6 +423,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         _undoStack: [],
         _redoStack: [],
         _loading: false,
+        ...(scanResult.warnings.length > 0 ? { _info: `Skipped ${scanResult.warnings.length} invalid file${scanResult.warnings.length === 1 ? '' : 's'}` } : {}),
       });
     } catch (err) {
       set({ _loading: false, _error: `Failed to open folder: ${(err as Error).message}` });
@@ -513,6 +521,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       set({
         _dirtyFiles: nextDirty,
         lastSavedFiles: { ...lastSavedFiles, [activeFilePath]: JSON.parse(JSON.stringify(file)) },
+        _info: 'Saved',
       });
     } catch (err) {
       if ((err as DOMException).name === 'NotAllowedError') {
@@ -556,6 +565,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ _dirtyFiles: nextDirty, lastSavedFiles: nextSaved });
     if (errors.length > 0) {
       set({ _error: `Save errors: ${errors.join('; ')}` });
+    } else {
+      set({ _info: `Saved ${savedPaths.length} file${savedPaths.length === 1 ? '' : 's'}` });
     }
   },
 
@@ -794,6 +805,76 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     });
   },
 
+  alignNodes: (rects, alignment) => {
+    if (rects.length < 2) return;
+    pushUndo(get, set);
+    const posMap = new Map<string, { x: number; y: number }>();
+    if (alignment === 'left') {
+      const minX = Math.min(...rects.map((r) => r.x));
+      for (const r of rects) posMap.set(r.id, { x: minX, y: r.y });
+    } else if (alignment === 'center') {
+      const avg = rects.reduce((sum, r) => sum + r.x + r.w / 2, 0) / rects.length;
+      for (const r of rects) posMap.set(r.id, { x: avg - r.w / 2, y: r.y });
+    } else if (alignment === 'right') {
+      const maxRight = Math.max(...rects.map((r) => r.x + r.w));
+      for (const r of rects) posMap.set(r.id, { x: maxRight - r.w, y: r.y });
+    } else if (alignment === 'top') {
+      const minY = Math.min(...rects.map((r) => r.y));
+      for (const r of rects) posMap.set(r.id, { x: r.x, y: minY });
+    } else if (alignment === 'middle') {
+      const avg = rects.reduce((sum, r) => sum + r.y + r.h / 2, 0) / rects.length;
+      for (const r of rects) posMap.set(r.id, { x: r.x, y: avg - r.h / 2 });
+    } else if (alignment === 'bottom') {
+      const maxBottom = Math.max(...rects.map((r) => r.y + r.h));
+      for (const r of rects) posMap.set(r.id, { x: r.x, y: maxBottom - r.h });
+    }
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      nodes: file.nodes.map((n) => {
+        const pos = posMap.get(n.id);
+        return pos ? { ...n, position: pos } : n;
+      }),
+    }));
+  },
+
+  distributeNodes: (rects, axis) => {
+    if (rects.length < 3) return;
+    pushUndo(get, set);
+    const posMap = new Map<string, { x: number; y: number }>();
+    if (axis === 'horizontal') {
+      const sorted = [...rects].sort((a, b) => a.x - b.x);
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+      const totalSpan = (last.x + last.w) - first.x;
+      const totalNodeWidth = sorted.reduce((sum, r) => sum + r.w, 0);
+      const gap = (totalSpan - totalNodeWidth) / (sorted.length - 1);
+      let currentX = first.x;
+      for (const r of sorted) {
+        posMap.set(r.id, { x: currentX, y: r.y });
+        currentX += r.w + gap;
+      }
+    } else {
+      const sorted = [...rects].sort((a, b) => a.y - b.y);
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+      const totalSpan = (last.y + last.h) - first.y;
+      const totalNodeHeight = sorted.reduce((sum, r) => sum + r.h, 0);
+      const gap = (totalSpan - totalNodeHeight) / (sorted.length - 1);
+      let currentY = first.y;
+      for (const r of sorted) {
+        posMap.set(r.id, { x: r.x, y: currentY });
+        currentY += r.h + gap;
+      }
+    }
+    updateActiveFile(get, set, (file) => ({
+      ...file,
+      nodes: file.nodes.map((n) => {
+        const pos = posMap.get(n.id);
+        return pos ? { ...n, position: pos } : n;
+      }),
+    }));
+  },
+
   removeNode: (nodeId) => {
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => ({
@@ -931,6 +1012,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setEditingNodeId: (id) => set({ editingNodeId: id }),
 
   clearError: () => set({ _error: null }),
+
+  showInfo: (msg) => set({ _info: msg }),
+
+  clearInfo: () => set({ _info: null }),
 
   renameFile: (newName) => {
     pushUndo(get, set);

@@ -104,6 +104,7 @@ export interface ScanResult {
   files: ScannedFile[];
   imagePaths: string[];
   pdfPaths: string[];
+  warnings: string[];
 }
 
 export async function scanFolder(
@@ -113,6 +114,7 @@ export async function scanFolder(
   const files: ScannedFile[] = [];
   const imagePaths: string[] = [];
   const pdfPaths: string[] = [];
+  const warnings: string[] = [];
   for await (const entry of dirHandle.values()) {
     const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
     if (entry.kind === 'directory') {
@@ -121,6 +123,7 @@ export async function scanFolder(
       files.push(...sub.files);
       imagePaths.push(...sub.imagePaths);
       pdfPaths.push(...sub.pdfPaths);
+      warnings.push(...sub.warnings);
     } else if (entry.kind === 'file') {
       if (entry.name.endsWith('.codecanvas.json')) {
         const fileHandle = entry as FileSystemFileHandle;
@@ -131,9 +134,11 @@ export async function scanFolder(
           const errors = validateFile(parsed);
           if (errors.length === 0) {
             files.push({ relativePath: entryPath, file: parsed, handle: fileHandle });
+          } else {
+            warnings.push(`${entryPath}: ${errors[0]}`);
           }
-        } catch {
-          // Skip malformed files
+        } catch (err) {
+          warnings.push(`${entryPath}: ${(err as Error).message ?? 'parse error'}`);
         }
       } else {
         const dot = entry.name.lastIndexOf('.');
@@ -149,7 +154,7 @@ export async function scanFolder(
   files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   imagePaths.sort();
   pdfPaths.sort();
-  return { files, imagePaths, pdfPaths };
+  return { files, imagePaths, pdfPaths, warnings };
 }
 
 export async function createFileInFolder(

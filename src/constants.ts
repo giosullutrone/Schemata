@@ -1,4 +1,5 @@
 export const COLORS = ['#4A90D9', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#34495E', '#E67E22'];
+export const COLOR_NAMES = ['Blue', 'Red', 'Green', 'Yellow', 'Purple', 'Teal', 'Dark Gray', 'Orange'];
 
 export type ColorModeSetting = 'light' | 'dark' | 'system';
 

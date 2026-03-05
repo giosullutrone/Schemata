@@ -1,16 +1,21 @@
 import React from 'react';
-import { COLORS } from '../constants';
+import { COLORS, COLOR_NAMES } from '../constants';
 import type { Stereotype } from '../types/schema';
 
 export function ColorRow({ onSelect }: { onSelect: (color: string) => void }) {
   return (
     <div className="context-menu-color-row">
-      {COLORS.map((color) => (
+      {COLORS.map((color, i) => (
         <div
           key={color}
+          role="button"
+          tabIndex={-1}
+          aria-label={COLOR_NAMES[i] ?? color}
+          title={COLOR_NAMES[i] ?? color}
           className="context-menu-color-swatch"
           style={{ background: color }}
           onClick={() => onSelect(color)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(color); } }}
         />
       ))}
     </div>
@@ -20,17 +25,17 @@ export function ColorRow({ onSelect }: { onSelect: (color: string) => void }) {
 export function StereotypeMenuItems({ onSet, current }: { onSet: (stereotype: Stereotype | undefined) => void; current?: Stereotype }) {
   return (
     <>
-      <div className="context-menu-item" onClick={() => onSet('interface')}>
+      <div className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => onSet('interface')}>
         Set &laquo;interface&raquo;
       </div>
-      <div className="context-menu-item" onClick={() => onSet('abstract')}>
+      <div className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => onSet('abstract')}>
         Set &laquo;abstract&raquo;
       </div>
-      <div className="context-menu-item" onClick={() => onSet('enum')}>
+      <div className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => onSet('enum')}>
         Set &laquo;enum&raquo;
       </div>
       {current && (
-        <div className="context-menu-item" onClick={() => onSet(undefined)}>
+        <div className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => onSet(undefined)}>
           Remove stereotype
         </div>
       )}

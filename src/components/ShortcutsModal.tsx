@@ -13,7 +13,9 @@ const SHORTCUTS = [
   { key: 'Shift + Double-click', desc: 'New class node at cursor' },
   { section: 'Editing' },
   { key: 'Ctrl + C', desc: 'Copy selected nodes' },
+  { key: 'Ctrl + X', desc: 'Cut selected nodes' },
   { key: 'Ctrl + V', desc: 'Paste at cursor' },
+  { key: 'Ctrl + D', desc: 'Duplicate selected nodes' },
   { key: 'Ctrl + A', desc: 'Select all nodes' },
   { key: 'Delete / Backspace', desc: 'Delete selected' },
   { section: 'History' },
@@ -39,7 +41,7 @@ export default function ShortcutsModal({ onClose }: ShortcutsModalProps) {
   }, [onClose]);
 
   return (
-    <div className="shortcuts-overlay" onClick={onClose} role="dialog" aria-label="Keyboard shortcuts">
+    <div className="shortcuts-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
       <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
         <button className="shortcuts-close" onClick={onClose} aria-label="Close shortcuts">&times;</button>
         <h2>Keyboard Shortcuts</h2>

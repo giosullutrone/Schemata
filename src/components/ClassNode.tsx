@@ -276,9 +276,9 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
         isVisible={!!selected}
       />
       {/* Handles on all four sides */}
-      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Top} id="top" isConnectable={isConnectable} />
       <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} />
-      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} />
+      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} />
       <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} />
 
       {/* Header */}

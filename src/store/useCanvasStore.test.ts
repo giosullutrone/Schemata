@@ -184,6 +184,30 @@ describe('useCanvasStore', () => {
     expect(edges[0].data.relationshipType).toBe('association');
   });
 
+  it('should set correct handles when comment is to the right of parent', () => {
+    const { addClassNode, addTextNode } = useCanvasStore.getState();
+    addClassNode(0, 0);
+    const parentId = getFile()!.nodes[0].id;
+    // Comment at x=200 is to the right of parent at x=0
+    addTextNode(200, 0, { parentId, parentType: 'node', text: 'Comment' });
+
+    const edge = getFile()!.edges[0];
+    expect(edge.sourceHandle).toBe('left');
+    expect(edge.targetHandle).toBe('right');
+  });
+
+  it('should set correct handles when comment is to the left of parent', () => {
+    const { addClassNode, addTextNode } = useCanvasStore.getState();
+    addClassNode(200, 0);
+    const parentId = getFile()!.nodes[0].id;
+    // Comment at x=0 is to the left of parent at x=200
+    addTextNode(0, 0, { parentId, parentType: 'node', text: 'Comment' });
+
+    const edge = getFile()!.edges[0];
+    expect(edge.sourceHandle).toBe('right');
+    expect(edge.targetHandle).toBe('left');
+  });
+
   it('should NOT cascade delete text nodes when parent node is removed', () => {
     const { addClassNode, addTextNode } = useCanvasStore.getState();
     addClassNode(0, 0);
