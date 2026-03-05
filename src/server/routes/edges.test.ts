@@ -16,7 +16,7 @@ describe('GET /api/canvas/edges', () => {
       { id: 'edge-1', source: 'class-1', target: 'class-2', data: { relationshipType: 'inheritance' } },
     ]);
     const res = await app.request('/api/canvas/edges');
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data).toHaveLength(1);
   });
 
@@ -26,7 +26,7 @@ describe('GET /api/canvas/edges', () => {
       { id: 'edge-2', source: 'class-3', target: 'class-2' },
     ]);
     const res = await app.request('/api/canvas/edges?source=class-1');
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data).toHaveLength(1);
     expect(json.data[0].source).toBe('class-1');
   });

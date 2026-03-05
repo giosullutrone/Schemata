@@ -20,7 +20,7 @@ describe('GET /api/canvas/nodes', () => {
 
     const res = await app.request('/api/canvas/nodes');
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data).toHaveLength(1);
     expect(json.data[0].id).toBe('class-1');
     expect(mockCallStore).toHaveBeenCalledWith('getNodes', []);
@@ -33,7 +33,7 @@ describe('GET /api/canvas/nodes', () => {
     ]);
 
     const res = await app.request('/api/canvas/nodes?type=classNode');
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data).toHaveLength(1);
     expect(json.data[0].type).toBe('classNode');
   });
@@ -49,7 +49,7 @@ describe('GET /api/canvas/nodes/:id', () => {
 
     const res = await app.request('/api/canvas/nodes/class-1');
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data.id).toBe('class-1');
   });
 
@@ -80,7 +80,7 @@ describe('POST /api/canvas/nodes', () => {
     });
 
     expect(res.status).toBe(201);
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data.id).toBe('class-1');
     expect(mockCallStore).toHaveBeenCalledWith('addClassNode', [100, 200]);
   });
@@ -187,7 +187,7 @@ describe('POST /api/canvas/nodes/batch', () => {
     });
 
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data.results).toHaveLength(3);
   });
 });

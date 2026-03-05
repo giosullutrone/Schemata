@@ -11,7 +11,7 @@ describe('GET /api/files', () => {
   it('returns file list', async () => {
     mockCallStore.mockResolvedValueOnce([{ path: 'diagram.codecanvas.json', name: 'Diagram' }]);
     const res = await app.request('/api/files');
-    const json = await res.json();
+    const json = await res.json() as any;
     expect(json.data).toHaveLength(1);
   });
 });

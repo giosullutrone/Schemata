@@ -45,7 +45,7 @@ describe('scanFolderFs', () => {
     // src subdir
     mockReaddir.mockResolvedValueOnce([]);
 
-    const result = await scanFolderFs('/test/folder');
+    await scanFolderFs('/test/folder');
     // node_modules should be skipped, only src scanned
     expect(mockReaddir).toHaveBeenCalledTimes(2);
   });
