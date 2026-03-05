@@ -149,9 +149,11 @@ export default function UmlEdge({
     [id, data?.label, updateEdgeData]
   );
 
-  // Determine marker rendering — only for class-to-class edges
-  const showMarkers = isClassToClass;
+  // Determine marker rendering
+  const showUmlMarkers = isClassToClass;
+  const showSimpleArrow = !isClassToClass;
   const markerId = `uml-${relationshipType}-${id}`;
+  const simpleMarkerId = `arrow-${id}`;
 
   // Determine stroke dash pattern
   let strokeDasharray: string | undefined;
@@ -171,8 +173,8 @@ export default function UmlEdge({
 
   return (
     <>
-      {showMarkers && (
-        <defs>
+      <defs>
+        {showUmlMarkers && (
           <marker
             id={markerId}
             viewBox="0 0 20 20"
@@ -188,13 +190,28 @@ export default function UmlEdge({
               d={config.markerPath}
               fill={markerFill}
               stroke={color}
-              strokeWidth={2}
+              strokeWidth={2.5}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
           </marker>
-        </defs>
-      )}
+        )}
+        {showSimpleArrow && (
+          <marker
+            id={simpleMarkerId}
+            viewBox="0 0 20 20"
+            markerWidth={8}
+            markerHeight={8}
+            refX={20}
+            refY={10}
+            orient="auto-start-reverse"
+            markerUnits="userSpaceOnUse"
+            overflow="visible"
+          >
+            <path d="M 0 0 L 20 10 L 0 20 Z" fill={color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          </marker>
+        )}
+      </defs>
       <BaseEdge
         id={id}
         path={edgePath}
@@ -205,8 +222,8 @@ export default function UmlEdge({
           strokeDasharray,
           opacity: 1,
         }}
-        markerStart={showMarkers && config.markerPosition === 'start' ? `url(#${markerId})` : undefined}
-        markerEnd={showMarkers && config.markerPosition === 'end' ? `url(#${markerId})` : undefined}
+        markerStart={showUmlMarkers && config.markerPosition === 'start' ? `url(#${markerId})` : undefined}
+        markerEnd={showUmlMarkers && config.markerPosition === 'end' ? `url(#${markerId})` : showSimpleArrow ? `url(#${simpleMarkerId})` : undefined}
       />
       {isDouble && (
         <path
