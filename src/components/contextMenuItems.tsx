@@ -70,6 +70,32 @@ export function BorderStyleRow({ onSelect, current }: { onSelect: (style: string
   );
 }
 
+const EDGE_STROKE_STYLES: { value: string; label: string; preview: React.CSSProperties }[] = [
+  { value: 'solid', label: 'Solid', preview: { borderBottom: '3px solid currentColor' } },
+  { value: 'dashed', label: 'Dashed', preview: { borderBottom: '3px dashed currentColor' } },
+  { value: 'dotted', label: 'Dotted', preview: { borderBottom: '3px dotted currentColor' } },
+  { value: 'double', label: 'Double', preview: { borderBottom: '4px double currentColor' } },
+];
+
+export function EdgeStrokeStyleRow({ onSelect, current }: { onSelect: (style: string) => void; current?: string }) {
+  return (
+    <div className="context-menu-icon-row">
+      {EDGE_STROKE_STYLES.map((bs) => (
+        <div
+          key={bs.value}
+          role="button"
+          aria-label={bs.label}
+          className={`context-menu-icon-swatch${current === bs.value ? ' active' : ''}`}
+          title={bs.label}
+          onClick={() => onSelect(bs.value)}
+        >
+          <div style={{ width: '100%', ...bs.preview }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const TEXT_ALIGNS: { value: string; label: string }[] = [
   { value: 'left', label: 'Left' },
   { value: 'center', label: 'Center' },

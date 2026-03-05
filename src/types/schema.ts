@@ -85,6 +85,7 @@ export interface ClassEdgeData {
   color?: string;
   labelWidth?: number;
   labelHeight?: number;
+  strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'double';
 }
 
 export interface ClassEdgeSchema {

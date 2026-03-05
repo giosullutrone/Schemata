@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import type { RelationshipType, Stereotype } from '../types/schema';
-import { ColorRow, StereotypeMenuItems, BorderStyleRow, TextAlignRow } from './contextMenuItems';
+import { ColorRow, StereotypeMenuItems, BorderStyleRow, TextAlignRow, EdgeStrokeStyleRow } from './contextMenuItems';
 import './ContextMenu.css';
 
 const RELATIONSHIP_TYPES: RelationshipType[] = [
@@ -14,12 +14,13 @@ interface ContextMenuProps {
   type: 'node' | 'edge' | 'selection';
   targetId: string;
   nodeType?: string;
+  edgeClassToClass?: boolean;
   onClose: () => void;
   screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number };
   selectedNodeRects?: { id: string; x: number; y: number; w: number; h: number }[];
 }
 
-export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, screenToFlowPosition, selectedNodeRects }: ContextMenuProps) {
+export default function ContextMenu({ x, y, type, targetId, nodeType, edgeClassToClass, onClose, screenToFlowPosition, selectedNodeRects }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const removeEdge = useCanvasStore((s) => s.removeEdge);
@@ -37,6 +38,13 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
     if (!fp || type !== 'node') return null;
     const node = s.files[fp]?.nodes.find((n) => n.id === targetId);
     return node?.data as Record<string, unknown> | null;
+  });
+
+  const targetEdgeData = useCanvasStore((s) => {
+    const fp = s.activeFilePath;
+    if (!fp || type !== 'edge') return null;
+    const edge = s.files[fp]?.edges.find((e) => e.id === targetId);
+    return edge?.data as Record<string, unknown> | null;
   });
 
   useEffect(() => {
@@ -148,6 +156,11 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
     onClose();
   }, [targetId, updateNodeData, onClose]);
 
+  const handleEdgeStrokeStyle = useCallback((style: string) => {
+    updateEdgeData(targetId, { strokeStyle: style as 'solid' | 'dashed' | 'dotted' | 'double' });
+    onClose();
+  }, [targetId, updateEdgeData, onClose]);
+
   const handleAddToGroup = useCallback(() => {
     if (selectedNodeRects && selectedNodeRects.length > 0) {
       groupSelectedNodes(selectedNodeRects);
@@ -247,13 +260,23 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
             </>
           )}
 
-          {type === 'edge' && (
+          {type === 'edge' && edgeClassToClass && (
             <>
               {RELATIONSHIP_TYPES.map((rt) => (
                 <div key={rt} className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => handleChangeType(rt)}>
                   {'\u2192'} {rt}
                 </div>
               ))}
+              <div className="context-menu-separator" />
+            </>
+          )}
+
+          {type === 'edge' && !edgeClassToClass && (
+            <>
+              <EdgeStrokeStyleRow
+                onSelect={handleEdgeStrokeStyle}
+                current={(targetEdgeData?.strokeStyle as string) ?? 'solid'}
+              />
               <div className="context-menu-separator" />
             </>
           )}

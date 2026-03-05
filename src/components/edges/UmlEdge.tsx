@@ -13,8 +13,20 @@ import './UmlEdge.css';
 
 type ClassEdge = Edge<ClassEdgeData>;
 
+/** Resolve strokeDasharray for a given strokeStyle */
+function strokeStyleToDasharray(style?: string): string | undefined {
+  switch (style) {
+    case 'dashed': return '8 4';
+    case 'dotted': return '2 4';
+    case 'double': return undefined; // handled separately via double-line rendering
+    default: return undefined; // 'solid' or undefined
+  }
+}
+
 export default function UmlEdge({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -32,6 +44,17 @@ export default function UmlEdge({
   const labelRef = useRef<HTMLDivElement>(null);
   const committingRef = useRef(false);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
+
+  // Check if both source and target are classNodes
+  const isClassToClass = useCanvasStore((s) => {
+    const fp = s.activeFilePath;
+    if (!fp) return false;
+    const nodes = s.files[fp]?.nodes;
+    if (!nodes) return false;
+    const srcNode = nodes.find((n) => n.id === source);
+    const tgtNode = nodes.find((n) => n.id === target);
+    return srcNode?.type === 'classNode' && tgtNode?.type === 'classNode';
+  });
 
   // Keep refs in sync with data so the ResizeObserver callback avoids stale closures
   const dataWidthRef = useRef(data?.labelWidth);
@@ -126,38 +149,75 @@ export default function UmlEdge({
     [id, data?.label, updateEdgeData]
   );
 
+  // Determine marker rendering — only for class-to-class edges
+  const showMarkers = isClassToClass;
   const markerId = `uml-${relationshipType}-${id}`;
+
+  // Determine stroke dash pattern
+  let strokeDasharray: string | undefined;
+  if (isClassToClass) {
+    // Use relationship-type-specific dash pattern
+    strokeDasharray = config.strokeDasharray;
+  } else {
+    // Use user-selected stroke style
+    strokeDasharray = strokeStyleToDasharray(data?.strokeStyle);
+  }
+
+  const isDouble = !isClassToClass && data?.strokeStyle === 'double';
+  const strokeWidth = selected ? 2.5 : 1.5;
+
+  // Determine marker fill
+  const markerFill = config.markerOpen ? 'none' : config.markerFilled === false ? 'white' : color;
 
   return (
     <>
-      <defs>
-        <marker
-          id={markerId}
-          viewBox="0 0 20 20"
-          markerWidth={config.markerWidth}
-          markerHeight={config.markerHeight}
-          refX={config.markerRefX}
-          refY={10}
-          orient="auto-start-reverse"
-          markerUnits="userSpaceOnUse"
-          overflow="visible"
-        >
-          <path d={config.markerPath} fill={config.markerFilled === false ? 'white' : color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        </marker>
-      </defs>
+      {showMarkers && (
+        <defs>
+          <marker
+            id={markerId}
+            viewBox="0 0 20 20"
+            markerWidth={config.markerWidth}
+            markerHeight={config.markerHeight}
+            refX={config.markerRefX}
+            refY={10}
+            orient="auto-start-reverse"
+            markerUnits="userSpaceOnUse"
+            overflow="visible"
+          >
+            <path
+              d={config.markerPath}
+              fill={markerFill}
+              stroke={color}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </marker>
+        </defs>
+      )}
       <BaseEdge
         id={id}
         path={edgePath}
         style={{
           ...style,
           stroke: color,
-          strokeWidth: selected ? 2.5 : 1.5,
-          strokeDasharray: config.strokeDasharray,
+          strokeWidth,
+          strokeDasharray,
           opacity: 1,
         }}
-        markerStart={config.markerPosition === 'start' ? `url(#${markerId})` : undefined}
-        markerEnd={config.markerPosition === 'end' ? `url(#${markerId})` : undefined}
+        markerStart={showMarkers && config.markerPosition === 'start' ? `url(#${markerId})` : undefined}
+        markerEnd={showMarkers && config.markerPosition === 'end' ? `url(#${markerId})` : undefined}
       />
+      {isDouble && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          style={{ pointerEvents: 'none' }}
+          transform="translate(0, 3)"
+        />
+      )}
       {(label || editing || data?.label === '') && (
         <EdgeLabelRenderer>
           <div

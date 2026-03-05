@@ -76,6 +76,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     type: 'node' | 'edge' | 'selection';
     targetId: string;
     nodeType?: string;
+    edgeClassToClass?: boolean;
     selectedNodeRects?: { id: string; x: number; y: number; w: number; h: number }[];
   } | null>(null);
 
@@ -91,7 +92,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     labelWidth?: number;
     labelHeight?: number;
     draggingSource?: boolean;
-    markerFilled?: boolean;
+    isClassToClass?: boolean;
   } | null>(null);
 
   // Track whether edge reconnection succeeded (for delete-on-drop)
@@ -136,7 +137,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
               markerUnits="userSpaceOnUse"
               overflow="visible"
             >
-              <path d={data.markerPath} fill={data.markerFilled === false ? 'white' : color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              <path d={data.markerPath} fill={data.markerOpen ? 'none' : data.markerFilled === false ? 'white' : color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
             </marker>
           </defs>
           <path
@@ -145,8 +146,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
             stroke={color}
             strokeWidth={1.5}
             strokeDasharray={data.strokeDasharray}
-            markerStart={data.markerPosition === 'start' ? 'url(#reconnect-marker)' : undefined}
-            markerEnd={data.markerPosition === 'end' ? 'url(#reconnect-marker)' : undefined}
+            markerStart={data.isClassToClass && data.markerPosition === 'start' ? 'url(#reconnect-marker)' : undefined}
+            markerEnd={data.isClassToClass && data.markerPosition === 'end' ? 'url(#reconnect-marker)' : undefined}
           />
           {data.label && (
             <foreignObject x={labelX - 300} y={labelY - 100} width={600} height={200} style={{ overflow: 'visible' }}>
@@ -546,6 +547,18 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       const d = edge.data as { color?: string; label?: string; relationshipType?: string } | undefined;
       const type = (d?.relationshipType ?? 'association') as RelationshipType;
       const cfg = EDGE_CONFIG[type] ?? EDGE_CONFIG.association;
+      // Check if both endpoints are class nodes
+      const store = useCanvasStore.getState();
+      const af = store.activeFilePath;
+      let isClassToClass = false;
+      if (af) {
+        const nodes = store.files[af]?.nodes;
+        if (nodes) {
+          const srcNode = nodes.find((n) => n.id === edge.source);
+          const tgtNode = nodes.find((n) => n.id === edge.target);
+          isClassToClass = srcNode?.type === 'classNode' && tgtNode?.type === 'classNode';
+        }
+      }
       // Capture current label dimensions from the DOM before the edge unmounts
       const labelEl = document.querySelector(`.uml-edge-label[data-edge-id="${edge.id}"]`) as HTMLElement | null;
       reconnectingEdgeRef.current = {
@@ -556,6 +569,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         labelHeight: labelEl?.offsetHeight,
         // handleType is the OPPOSITE (fixed) handle, so 'target' means source is being dragged
         draggingSource: handleType === 'target',
+        isClassToClass,
       };
     },
     []
@@ -642,9 +656,20 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   );
 
   const handleEdgeContextMenu = useCallback(
-    (event: React.MouseEvent, edge: { id: string }) => {
+    (event: React.MouseEvent, edge: { id: string; source: string; target: string }) => {
       event.preventDefault();
-      setContextMenu({ x: event.clientX, y: event.clientY, type: 'edge', targetId: edge.id });
+      const store = useCanvasStore.getState();
+      const af = store.activeFilePath;
+      let edgeClassToClass = false;
+      if (af) {
+        const nodes = store.files[af]?.nodes;
+        if (nodes) {
+          const srcNode = nodes.find((n) => n.id === edge.source);
+          const tgtNode = nodes.find((n) => n.id === edge.target);
+          edgeClassToClass = srcNode?.type === 'classNode' && tgtNode?.type === 'classNode';
+        }
+      }
+      setContextMenu({ x: event.clientX, y: event.clientY, type: 'edge', targetId: edge.id, edgeClassToClass });
     },
     []
   );
@@ -868,6 +893,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
           type={contextMenu.type}
           targetId={contextMenu.targetId}
           nodeType={contextMenu.nodeType}
+          edgeClassToClass={contextMenu.edgeClassToClass}
           onClose={() => setContextMenu(null)}
           screenToFlowPosition={screenToFlowPosition}
           selectedNodeRects={contextMenu.selectedNodeRects}
