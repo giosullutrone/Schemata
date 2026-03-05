@@ -12,6 +12,13 @@ function GroupNodeComponent({ id, data, selected }: NodeProps<GroupNodeType>) {
   const [draft, setDraft] = useState(data.label);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Sync draft from store when not editing (e.g. after undo/redo)
+  useEffect(() => {
+    if (!editing) {
+      setDraft(data.label);
+    }
+  }, [data.label, editing]);
+
   useEffect(() => {
     if (editing) {
       inputRef.current?.focus();
@@ -51,6 +58,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps<GroupNodeType>) {
         <input
           ref={inputRef}
           className="group-node-label-input nodrag nowheel"
+          aria-label="Edit group label"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}

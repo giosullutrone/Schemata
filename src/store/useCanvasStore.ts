@@ -13,6 +13,7 @@ import {
   createFileInFolder,
   writeToHandle,
 } from '../utils/fileIO';
+import { clearImageCache } from '../utils/imageCache';
 
 let nextNodeId = 1;
 let nextEdgeId = 1;
@@ -213,6 +214,10 @@ interface CanvasStore {
   lastSavedFiles: Record<string, CodeCanvasFile>;
   _dirtyFiles: Record<string, boolean>;
 
+  // Image files discovered in folder
+  imagePaths: string[];
+  previewImagePath: string | null;
+
   // Sidebar
   sidebarOpen: boolean;
 
@@ -231,6 +236,8 @@ interface CanvasStore {
   saveActiveFile: () => Promise<void>;
   saveAllFiles: () => Promise<void>;
   removeFile: (filePath: string) => Promise<void>;
+  moveFileToFolder: (sourcePath: string, targetFolderPath: string) => Promise<void>;
+  setPreviewImage: (path: string | null) => void;
 
   // Node operations
   addClassNode: (x: number, y: number) => void;
@@ -281,11 +288,17 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   _redoStack: [],
   lastSavedFiles: {},
   _dirtyFiles: {},
+  imagePaths: [],
+  previewImagePath: null,
   _loading: false,
   _error: null,
   sidebarOpen: (() => {
-    const stored = localStorage.getItem('codecanvas-sidebar-open');
-    return stored !== null ? stored === 'true' : true;
+    try {
+      const stored = localStorage.getItem('codecanvas-sidebar-open');
+      return stored !== null ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
   })(),
 
   undo: () => {
@@ -343,6 +356,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       _redoStack: [],
       lastSavedFiles: {},
       _dirtyFiles: {},
+      imagePaths: [],
+      previewImagePath: null,
       _loading: false,
       _error: null,
       sidebarOpen: true,
@@ -356,13 +371,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }
     const dirHandle = await openFolderPicker();
     if (!dirHandle) return;
+    clearImageCache();
     set({ _loading: true, _error: null });
     try {
-      const scanned = await scanFolder(dirHandle);
+      const scanResult = await scanFolder(dirHandle);
       const files: Record<string, CodeCanvasFile> = {};
       const handles: Record<string, FileSystemFileHandle> = {};
       const lastSaved: Record<string, CodeCanvasFile> = {};
-      for (const s of scanned) {
+      for (const s of scanResult.files) {
         const migrated = deduplicateNodes(migrateFile(s.file));
         files[s.relativePath] = migrated;
         handles[s.relativePath] = s.handle;
@@ -376,6 +392,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         files,
         fileHandles: handles,
         lastSavedFiles: lastSaved,
+        imagePaths: scanResult.imagePaths,
+        previewImagePath: null,
         _dirtyFiles: {},
         activeFilePath: firstPath,
         _undoStack: [],
@@ -392,12 +410,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (!folderHandle) return;
     set({ _loading: true, _error: null });
     try {
-      const scanned = await scanFolder(folderHandle);
+      const scanResult = await scanFolder(folderHandle);
       const nextFiles: Record<string, CodeCanvasFile> = {};
       const nextHandles: Record<string, FileSystemFileHandle> = {};
       const nextSaved: Record<string, CodeCanvasFile> = {};
       const nextDirty: Record<string, boolean> = {};
-      for (const s of scanned) {
+      for (const s of scanResult.files) {
         if (files[s.relativePath] && _dirtyFiles[s.relativePath]) {
           nextFiles[s.relativePath] = files[s.relativePath];
           nextHandles[s.relativePath] = fileHandles[s.relativePath] ?? s.handle;
@@ -416,6 +434,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         files: nextFiles,
         fileHandles: nextHandles,
         lastSavedFiles: nextSaved,
+        imagePaths: scanResult.imagePaths,
         _dirtyFiles: nextDirty,
         activeFilePath: nextActive,
         _loading: false,
@@ -426,7 +445,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   setActiveFile: (filePath) => {
-    set({ activeFilePath: filePath });
+    set({ activeFilePath: filePath, previewImagePath: null });
+  },
+
+  setPreviewImage: (path) => {
+    set({ previewImagePath: path, ...(path ? { activeFilePath: null } : {}) });
   },
 
   createFile: async (folderRelativePath, displayName) => {
@@ -470,28 +493,43 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         lastSavedFiles: { ...lastSavedFiles, [activeFilePath]: JSON.parse(JSON.stringify(file)) },
       });
     } catch (err) {
-      set({ _error: `Save failed: ${(err as Error).message}` });
+      if ((err as DOMException).name === 'NotAllowedError') {
+        set({ _error: 'File access permission lost. Please re-open the folder to continue saving.' });
+      } else {
+        set({ _error: `Save failed: ${(err as Error).message}` });
+      }
     }
   },
 
   saveAllFiles: async () => {
-    const { files, fileHandles, _dirtyFiles } = get();
-    const dirtyPaths = Object.keys(_dirtyFiles);
+    const dirtyPaths = Object.keys(get()._dirtyFiles);
     if (dirtyPaths.length === 0) return;
     const errors: string[] = [];
-    const nextDirty = { ..._dirtyFiles };
-    const nextSaved = { ...get().lastSavedFiles };
+    const savedPaths: string[] = [];
+    const savedSnapshots: Record<string, CodeCanvasFile> = {};
     for (const fp of dirtyPaths) {
+      // Snapshot right before writing to avoid race condition with in-progress edits
+      const { files, fileHandles } = get();
       const file = files[fp];
       const handle = fileHandles[fp];
       if (!file || !handle) continue;
       try {
         await writeToHandle(handle, file);
-        delete nextDirty[fp];
-        nextSaved[fp] = JSON.parse(JSON.stringify(file));
+        savedPaths.push(fp);
+        savedSnapshots[fp] = JSON.parse(JSON.stringify(file));
       } catch (err) {
-        errors.push(`${fp}: ${(err as Error).message}`);
+        if ((err as DOMException).name === 'NotAllowedError') {
+          errors.push(`${fp}: permission lost — re-open folder`);
+        } else {
+          errors.push(`${fp}: ${(err as Error).message}`);
+        }
       }
+    }
+    const nextDirty = { ...get()._dirtyFiles };
+    const nextSaved = { ...get().lastSavedFiles };
+    for (const fp of savedPaths) {
+      delete nextDirty[fp];
+      nextSaved[fp] = savedSnapshots[fp];
     }
     set({ _dirtyFiles: nextDirty, lastSavedFiles: nextSaved });
     if (errors.length > 0) {
@@ -544,6 +582,97 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     });
   },
 
+  moveFileToFolder: async (sourcePath, targetFolderPath) => {
+    const state = get();
+    const { folderHandle } = state;
+    if (!folderHandle) return;
+
+    const fileName = sourcePath.split('/').pop()!;
+    const newPath = targetFolderPath ? `${targetFolderPath}/${fileName}` : fileName;
+    const currentFolder = sourcePath.includes('/') ? sourcePath.substring(0, sourcePath.lastIndexOf('/')) : '';
+    if (currentFolder === targetFolderPath) return; // Same folder, no-op
+
+    try {
+      const getDir = async (path: string) => {
+        let dir = folderHandle;
+        if (path) {
+          for (const seg of path.split('/')) {
+            dir = await dir.getDirectoryHandle(seg);
+          }
+        }
+        return dir;
+      };
+
+      const srcDir = await getDir(currentFolder);
+      const tgtDir = await getDir(targetFolderPath);
+
+      // Check for name conflict
+      try {
+        await tgtDir.getFileHandle(fileName, { create: false });
+        set({ _error: `A file named "${fileName}" already exists in the target folder` });
+        return;
+      } catch {
+        // No conflict — good
+      }
+
+      const isCanvas = sourcePath in state.files;
+
+      if (isCanvas) {
+        // Write current in-memory state to new location (preserves dirty changes)
+        const currentData = state.files[sourcePath];
+        const newHandle = await tgtDir.getFileHandle(fileName, { create: true });
+        await writeToHandle(newHandle, currentData);
+        await srcDir.removeEntry(fileName);
+
+        const nextFiles = { ...state.files };
+        const nextHandles = { ...state.fileHandles };
+        const nextSaved = { ...state.lastSavedFiles };
+        const nextDirty = { ...state._dirtyFiles };
+
+        nextFiles[newPath] = nextFiles[sourcePath];
+        delete nextFiles[sourcePath];
+        nextHandles[newPath] = newHandle;
+        delete nextHandles[sourcePath];
+        nextSaved[newPath] = currentData;
+        delete nextSaved[sourcePath];
+        delete nextDirty[sourcePath]; // saved during move
+
+        set({
+          files: nextFiles,
+          fileHandles: nextHandles,
+          lastSavedFiles: nextSaved,
+          _dirtyFiles: nextDirty,
+          activeFilePath: state.activeFilePath === sourcePath ? newPath : state.activeFilePath,
+          // Remap undo/redo entries for the moved file path
+          _undoStack: state._undoStack.map((e) => e.filePath === sourcePath ? { ...e, filePath: newPath } : e),
+          _redoStack: state._redoStack.map((e) => e.filePath === sourcePath ? { ...e, filePath: newPath } : e),
+        });
+      } else {
+        // Image: copy raw bytes
+        const srcFileHandle = await srcDir.getFileHandle(fileName);
+        const srcFile = await srcFileHandle.getFile();
+        const content = await srcFile.arrayBuffer();
+
+        const newHandle = await tgtDir.getFileHandle(fileName, { create: true });
+        const writable = await newHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        await srcDir.removeEntry(fileName);
+
+        const newImagePaths = state.imagePaths.filter((p) => p !== sourcePath);
+        newImagePaths.push(newPath);
+        newImagePaths.sort();
+
+        set({
+          imagePaths: newImagePaths,
+          previewImagePath: state.previewImagePath === sourcePath ? newPath : state.previewImagePath,
+        });
+      }
+    } catch (err) {
+      set({ _error: `Failed to move file: ${(err as Error).message}` });
+    }
+  },
+
   addClassNode: (x, y) => {
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => {
@@ -581,16 +710,16 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       let newEdges = file.edges;
       if (parentId) {
-        let targetNodeId = parentId;
+        let targetNodeId: string | null = parentId;
         if (parentType === 'edge') {
           const parentEdge = file.edges.find((e) => e.id === parentId);
-          if (parentEdge) targetNodeId = parentEdge.source;
+          targetNodeId = parentEdge?.source ?? null;
         }
-        const targetNode = file.nodes.find((n) => n.id === targetNodeId);
+        const targetNode = targetNodeId ? file.nodes.find((n) => n.id === targetNodeId) : null;
         const isLeft = targetNode ? x < targetNode.position.x : false;
         const sourceHandle = isLeft ? 'right' : 'left';
         const targetHandle = isLeft ? 'left' : 'right';
-        if (targetNodeId) {
+        if (targetNodeId && targetNode) {
           newEdges = [
             ...file.edges,
             {
@@ -756,14 +885,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (!activeFilePath) return;
     const file = files[activeFilePath];
     if (!file) return;
-    // Skip update if viewport hasn't changed to avoid dirtying the file
+    // Skip update if viewport hasn't changed (epsilon comparison to avoid floating-point drift)
     const v = file.viewport;
-    if (v && v.x === viewport.x && v.y === viewport.y && v.zoom === viewport.zoom) return;
+    if (v && Math.abs(v.x - viewport.x) < 0.0001 && Math.abs(v.y - viewport.y) < 0.0001 && Math.abs(v.zoom - viewport.zoom) < 0.0001) return;
     updateActiveFile(get, set, (f) => ({ ...f, viewport }));
   },
 
   setSidebarOpen: (open) => {
-    localStorage.setItem('codecanvas-sidebar-open', String(open));
+    try { localStorage.setItem('codecanvas-sidebar-open', String(open)); } catch { /* storage unavailable */ }
     set({ sidebarOpen: open });
   },
 

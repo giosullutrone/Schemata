@@ -101,4 +101,52 @@ describe('calculateGuides', () => {
     const horizontals = result.guides.filter((g) => g.orientation === 'horizontal');
     expect(horizontals.some((g) => g.pos === 250)).toBe(true);
   });
+
+  it('should detect vertical center-center alignment', () => {
+    // Dragged center X = 100 + 200/2 = 200. Other center X = 150 + 100/2 = 200.
+    const others: NodeRect[] = [{ id: 'b', x: 150, y: 400, width: 100, height: 80 }];
+    const result = calculateGuides(dragged, others);
+    const verticals = result.guides.filter((g) => g.orientation === 'vertical');
+    expect(verticals.some((g) => g.pos === 200)).toBe(true);
+  });
+
+  it('should align edges between different-sized nodes', () => {
+    // Dragged: x=100, w=200 (right=300). Other: x=300, w=50 (right=350).
+    // Right-to-left alignment: draggedRight(300) == other.x(300)
+    const others: NodeRect[] = [{ id: 'b', x: 300, y: 400, width: 50, height: 80 }];
+    const result = calculateGuides(dragged, others);
+    const verticals = result.guides.filter((g) => g.orientation === 'vertical');
+    expect(verticals.some((g) => g.pos === 300)).toBe(true);
+    expect(result.snapDeltaX).toBe(0);
+  });
+
+  it('should scale threshold with zoom', () => {
+    // At zoom=2, threshold 5 becomes 5/2=2.5 flow units.
+    // 3px away should NOT snap at zoom=2 (3 > 2.5)
+    const others: NodeRect[] = [{ id: 'b', x: 103, y: 400, width: 200, height: 150 }];
+    const noSnap = calculateGuides(dragged, others, 5, 2);
+    expect(noSnap.snapDeltaX).toBeNull();
+
+    // At zoom=0.5, threshold 5 becomes 5/0.5=10 flow units.
+    // 8px away SHOULD snap at zoom=0.5 (8 < 10)
+    const others2: NodeRect[] = [{ id: 'b', x: 108, y: 400, width: 200, height: 150 }];
+    const snaps = calculateGuides(dragged, others2, 5, 0.5);
+    expect(snaps.snapDeltaX).toBe(8);
+  });
+
+  it('should only show guides matching the snapped position', () => {
+    // Dragged: x=100, w=200, right=300. Two others:
+    // Node B: left=100 (exact left-left match, dist=0)
+    // Node C: left=303 (close to right-left, dist=3)
+    // Best delta = 0 (exact match). Guide at 303 should be filtered out
+    // because after snap (delta=0), right edge stays at 300, not 303.
+    const others: NodeRect[] = [
+      { id: 'b', x: 100, y: 400, width: 80, height: 80 },
+      { id: 'c', x: 303, y: 400, width: 80, height: 80 },
+    ];
+    const result = calculateGuides(dragged, others);
+    const verticals = result.guides.filter((g) => g.orientation === 'vertical');
+    expect(verticals.some((g) => g.pos === 100)).toBe(true);
+    expect(verticals.some((g) => g.pos === 303)).toBe(false);
+  });
 });

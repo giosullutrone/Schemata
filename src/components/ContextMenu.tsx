@@ -131,10 +131,10 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
   }, [selectedNodeRects, groupSelectedNodes, onClose]);
 
   return (
-    <div className="context-menu" ref={ref} style={{ left: x, top: y }}>
+    <div className="context-menu" ref={ref} style={{ left: x, top: y }} role="menu" aria-label="Context menu">
       {type === 'selection' ? (
         <>
-          <div className="context-menu-item" onClick={handleAddToGroup}>
+          <div className="context-menu-item" role="menuitem" onClick={handleAddToGroup}>
             Add to group
           </div>
         </>
@@ -145,7 +145,7 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
 
           {type === 'node' && nodeType === 'classNode' && (
             <>
-              <StereotypeMenuItems onSet={handleSetStereotype} />
+              <StereotypeMenuItems onSet={handleSetStereotype} current={targetNodeData?.stereotype as Stereotype | undefined} />
               <div className="context-menu-separator" />
             </>
           )}
@@ -167,7 +167,7 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
           {type === 'edge' && (
             <>
               {RELATIONSHIP_TYPES.map((rt) => (
-                <div key={rt} className="context-menu-item" onClick={() => handleChangeType(rt)}>
+                <div key={rt} className="context-menu-item" role="menuitem" onClick={() => handleChangeType(rt)}>
                   → {rt}
                 </div>
               ))}
@@ -175,11 +175,11 @@ export default function ContextMenu({ x, y, type, targetId, nodeType, onClose, s
             </>
           )}
 
-          <div className="context-menu-item" onClick={handleAddComment}>
+          <div className="context-menu-item" role="menuitem" onClick={handleAddComment}>
             Add comment
           </div>
           <div className="context-menu-separator" />
-          <div className="context-menu-item danger" onClick={handleDelete}>
+          <div className="context-menu-item danger" role="menuitem" onClick={handleDelete}>
             Delete
           </div>
         </>

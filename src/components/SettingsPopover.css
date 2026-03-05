@@ -59,3 +59,9 @@
   color: var(--text-muted);
   margin-left: 4px;
 }
+
+.settings-popover-separator {
+  height: 1px;
+  background: var(--border-secondary);
+  margin: 2px 0;
+}

@@ -41,12 +41,13 @@
   padding: 6px 12px;
   border-bottom: 1px solid var(--border-secondary);
   min-height: 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .class-node-section:last-child {
   border-bottom: none;
   flex: 1;
-  overflow-y: auto;
 }
 
 .class-node-row {
@@ -108,10 +109,10 @@
 }
 
 .class-node-sub-handle {
-  width: 6px !important;
-  height: 6px !important;
-  min-width: 6px !important;
-  min-height: 6px !important;
+  width: calc(6px / var(--zoom, 1)) !important;
+  height: calc(6px / var(--zoom, 1)) !important;
+  min-width: calc(6px / var(--zoom, 1)) !important;
+  min-height: calc(6px / var(--zoom, 1)) !important;
   background: var(--text-muted) !important;
   border: 1px solid var(--border-secondary) !important;
   opacity: 0;

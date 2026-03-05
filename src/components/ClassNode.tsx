@@ -2,6 +2,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { Handle, Position, NodeResizer, type Node, type NodeProps } from '@xyflow/react';
 import type { ClassNodeData, ClassNodeSchema, ClassProperty, ClassMethod, Visibility } from '../types/schema';
 import { useCanvasStore, generatePropId, generateMethodId } from '../store/useCanvasStore';
+import { useScrollBlockOnSelect } from '../hooks/useScrollBlockOnSelect';
 import './ClassNode.css';
 
 type ClassNodeType = Node<ClassNodeData, 'classNode'>;
@@ -65,6 +66,7 @@ function InlineEdit({
       <input
         ref={inputRef}
         className="class-node-inline-input nodrag"
+        aria-label="Edit value"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
@@ -230,6 +232,11 @@ function MethodRow({
 // ---------------------------------------------------------------------------
 function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<ClassNodeType>) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const propsSectionRef = useRef<HTMLDivElement>(null);
+  const methodsSectionRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef([propsSectionRef, methodsSectionRef]).current;
+  const blockPan = useScrollBlockOnSelect(containerRef, sectionRefs, selected);
 
   const headerStyle = data.color
     ? { borderBottom: `2px solid ${data.color}`, background: `${data.color}11` }
@@ -259,7 +266,8 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
 
   return (
     <div
-      className={`class-node${selected ? ' selected' : ''}`}
+      ref={containerRef}
+      className={`class-node${selected ? ' selected' : ''}${blockPan ? ' nowheel' : ''}`}
       style={borderStyle}
     >
       <NodeResizer
@@ -289,7 +297,7 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
       </div>
 
       {/* Properties section */}
-      <div className="class-node-section">
+      <div className="class-node-section" ref={propsSectionRef}>
         {data.properties.map((prop, i) => (
           <PropertyRow key={prop.id} property={prop} nodeId={id} index={i} />
         ))}
@@ -299,7 +307,7 @@ function ClassNodeComponent({ id, data, selected, isConnectable }: NodeProps<Cla
       </div>
 
       {/* Methods section */}
-      <div className="class-node-section">
+      <div className="class-node-section" ref={methodsSectionRef}>
         {data.methods.map((method, i) => (
           <MethodRow key={method.id} method={method} nodeId={id} index={i} />
         ))}

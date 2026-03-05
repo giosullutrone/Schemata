@@ -14,11 +14,17 @@ export interface FileTreeNode {
   relativePath: string;
 }
 
-export type TreeNode = FolderTreeNode | FileTreeNode;
+export interface ImageTreeNode {
+  kind: 'image';
+  name: string;
+  relativePath: string;
+}
 
-export function buildFolderTree(files: Record<string, CodeCanvasFile>): TreeNode[] {
-  // Group files by their parent directory
-  const folderMap = new Map<string, FileTreeNode[]>();
+export type TreeNode = FolderTreeNode | FileTreeNode | ImageTreeNode;
+
+export function buildFolderTree(files: Record<string, CodeCanvasFile>, imagePaths: string[] = []): TreeNode[] {
+  // Group files and images by their parent directory
+  const folderMap = new Map<string, (FileTreeNode | ImageTreeNode)[]>();
 
   for (const [relativePath, file] of Object.entries(files)) {
     const lastSlash = relativePath.lastIndexOf('/');
@@ -33,6 +39,21 @@ export function buildFolderTree(files: Record<string, CodeCanvasFile>): TreeNode
       name: file.name,
       fileName,
       relativePath,
+    });
+  }
+
+  for (const imgPath of imagePaths) {
+    const lastSlash = imgPath.lastIndexOf('/');
+    const dirPath = lastSlash === -1 ? '' : imgPath.substring(0, lastSlash);
+    const name = lastSlash === -1 ? imgPath : imgPath.substring(lastSlash + 1);
+
+    if (!folderMap.has(dirPath)) {
+      folderMap.set(dirPath, []);
+    }
+    folderMap.get(dirPath)!.push({
+      kind: 'image',
+      name,
+      relativePath: imgPath,
     });
   }
 
@@ -69,9 +90,12 @@ export function buildFolderTree(files: Record<string, CodeCanvasFile>): TreeNode
     const filesHere = folderMap.get(parentPath) ?? [];
     children.push(...filesHere);
 
-    // Sort: folders first (alphabetical), then files (alphabetical)
+    // Sort: folders first, then canvas files, then images (alphabetical within each)
+    const kindOrder: Record<string, number> = { folder: 0, file: 1, image: 2 };
     children.sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+      const ka = kindOrder[a.kind] ?? 3;
+      const kb = kindOrder[b.kind] ?? 3;
+      if (ka !== kb) return ka - kb;
       return a.name.localeCompare(b.name);
     });
 

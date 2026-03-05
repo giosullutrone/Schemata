@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, type KeyboardEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useCanvasStore } from '../store/useCanvasStore';
-import { buildFolderTree, type TreeNode, type FolderTreeNode, type FileTreeNode } from '../utils/folderTree';
+import { buildFolderTree, type TreeNode, type FolderTreeNode, type FileTreeNode, type ImageTreeNode } from '../utils/folderTree';
 import { ColorRow, StereotypeMenuItems } from './contextMenuItems';
 import './Sidebar.css';
 
@@ -62,6 +62,9 @@ export default function Sidebar() {
   const folderName = useCanvasStore((s) => s.folderName);
   const sidebarOpen = useCanvasStore((s) => s.sidebarOpen);
   const dirtyFiles = useCanvasStore((s) => s._dirtyFiles);
+  const imagePaths = useCanvasStore((s) => s.imagePaths);
+  const previewImagePath = useCanvasStore((s) => s.previewImagePath);
+  const setPreviewImage = useCanvasStore((s) => s.setPreviewImage);
   const loading = useCanvasStore((s) => s._loading);
   const error = useCanvasStore((s) => s._error);
 
@@ -72,11 +75,74 @@ export default function Sidebar() {
   const addTextNode = useCanvasStore((s) => s.addTextNode);
   const saveViewport = useCanvasStore((s) => s.saveViewport);
   const renameFile = useCanvasStore((s) => s.renameFile);
+  const moveFileToFolder = useCanvasStore((s) => s.moveFileToFolder);
 
   const { getViewport, setCenter, setNodes } = useReactFlow();
 
+  // --- Search/filter ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Build folder tree from flat file map
-  const tree = useMemo(() => buildFolderTree(files), [files]);
+  const tree = useMemo(() => buildFolderTree(files, imagePaths), [files, imagePaths]);
+
+  // Filter tree nodes by search query
+  const filteredTree = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tree;
+
+    function matchesSearch(node: TreeNode): boolean {
+      if (node.kind === 'folder') return node.name.toLowerCase().includes(q) || node.children.some(matchesSearch);
+      if (node.kind === 'image') return node.name.toLowerCase().includes(q);
+      // file node: match file name or any node display name inside
+      if (node.name.toLowerCase().includes(q)) return true;
+      const fileData = files[node.relativePath];
+      if (fileData) {
+        return fileData.nodes.some((n) => getNodeDisplayName(n as { type?: string; data: Record<string, unknown> }).toLowerCase().includes(q));
+      }
+      return false;
+    }
+
+    function filterNodes(nodes: TreeNode[]): TreeNode[] {
+      const result: TreeNode[] = [];
+      for (const node of nodes) {
+        if (node.kind === 'folder') {
+          const filteredChildren = filterNodes(node.children);
+          if (filteredChildren.length > 0 || node.name.toLowerCase().includes(q)) {
+            result.push({ ...node, children: filteredChildren.length > 0 ? filteredChildren : node.children });
+          }
+        } else if (matchesSearch(node)) {
+          result.push(node);
+        }
+      }
+      return result;
+    }
+
+    return filterNodes(tree);
+  }, [tree, searchQuery, files]);
+
+  // --- Drag & drop state ---
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, relativePath: string) => {
+    e.dataTransfer.setData('text/plain', relativePath);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleFolderDragOver = useCallback((e: React.DragEvent, folderPath: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverFolder(folderPath);
+  }, []);
+
+  const handleFolderDrop = useCallback((e: React.DragEvent, targetFolderPath: string) => {
+    e.preventDefault();
+    setDragOverFolder(null);
+    const sourcePath = e.dataTransfer.getData('text/plain');
+    if (sourcePath) {
+      moveFileToFolder(sourcePath, targetFolderPath);
+    }
+  }, [moveFileToFolder]);
 
   // --- Collapsed state ---
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
@@ -142,11 +208,11 @@ export default function Sidebar() {
   // --- File click: activate file ---
   const handleFileClick = useCallback(
     (filePath: string) => {
-      if (filePath === activeFilePath) return;
+      if (filePath === activeFilePath && !previewImagePath) return;
       saveViewport(getViewport());
       setActiveFile(filePath);
     },
-    [activeFilePath, setActiveFile, saveViewport, getViewport]
+    [activeFilePath, previewImagePath, setActiveFile, saveViewport, getViewport]
   );
 
   // --- Node click: pan + select ---
@@ -183,9 +249,11 @@ export default function Sidebar() {
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
-    kind: 'folder' | 'file' | 'node';
+    kind: 'folder' | 'file' | 'node' | 'image';
     folderPath?: string;
     filePath?: string;
+    imagePath?: string;
+    imageName?: string;
     nodeId?: string;
     nodeType?: string;
   } | null>(null);
@@ -238,6 +306,7 @@ export default function Sidebar() {
   function renderTreeNodes(nodes: TreeNode[], depth: number) {
     return nodes.map((node) => {
       if (node.kind === 'folder') return renderFolder(node, depth);
+      if (node.kind === 'image') return renderImageNode(node, depth);
       return renderFileNode(node, depth);
     });
   }
@@ -247,9 +316,12 @@ export default function Sidebar() {
     return (
       <div key={`folder:${folder.path}`}>
         <div
-          className="sidebar-folder-row"
+          className={`sidebar-folder-row${dragOverFolder === folder.path ? ' drag-over' : ''}`}
           style={{ paddingLeft: 10 + depth * 16 }}
           onClick={() => toggleCollapse(folder.path)}
+          onDragOver={(e) => handleFolderDragOver(e, folder.path)}
+          onDragLeave={() => setDragOverFolder(null)}
+          onDrop={(e) => handleFolderDrop(e, folder.path)}
           onContextMenu={(e) => {
             e.preventDefault();
             setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: folder.path });
@@ -293,6 +365,25 @@ export default function Sidebar() {
         <div
           className={`sidebar-file-row${isActiveFile ? ' active' : ''}`}
           style={{ paddingLeft: 10 + depth * 16 }}
+          draggable
+          onDragStart={(e) => handleDragStart(e, file.relativePath)}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('application/codecanvas-image')) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }
+          }}
+          onDrop={(e) => {
+            const imagePath = e.dataTransfer.getData('application/codecanvas-image');
+            if (imagePath) {
+              e.preventDefault();
+              handleFileClick(file.relativePath);
+              const fileName = imagePath.split('/').pop() ?? 'image';
+              setTimeout(() => {
+                useCanvasStore.getState().addTextNode(0, 0, { text: `![${fileName}](${imagePath})` });
+              }, 0);
+            }
+          }}
           onClick={() => handleFileClick(file.relativePath)}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -346,6 +437,32 @@ export default function Sidebar() {
     );
   }
 
+  function renderImageNode(img: ImageTreeNode, depth: number) {
+    const isActive = img.relativePath === previewImagePath;
+    return (
+      <div
+        key={`img:${img.relativePath}`}
+        className={`sidebar-file-row sidebar-image-row${isActive ? ' active' : ''}`}
+        style={{ paddingLeft: 10 + depth * 16 }}
+        draggable
+        onDragStart={(e) => {
+          handleDragStart(e, img.relativePath);
+          e.dataTransfer.setData('application/codecanvas-image', img.relativePath);
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }}
+        onClick={() => setPreviewImage(img.relativePath)}
+        title={`Click to preview. Right-click for options.`}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'image', imagePath: img.relativePath, imageName: img.name });
+        }}
+      >
+        <span className="sidebar-file-icon">{'\uD83D\uDDBC\uFE0F'}</span>
+        <span className="sidebar-canvas-name">{img.name}</span>
+      </div>
+    );
+  }
+
   // --- Collapsed sidebar ---
   if (!sidebarOpen) {
     return (
@@ -356,7 +473,7 @@ export default function Sidebar() {
   }
 
   const hasFolderOpen = folderName !== null;
-  const hasFiles = Object.keys(files).length > 0;
+  const hasFiles = Object.keys(files).length > 0 || imagePaths.length > 0;
 
   return (
     <>
@@ -420,6 +537,31 @@ export default function Sidebar() {
           </div>
         )}
 
+        {/* Search */}
+        {hasFolderOpen && hasFiles && (
+          <div className="sidebar-search">
+            <input
+              ref={searchInputRef}
+              className="sidebar-search-input"
+              type="text"
+              placeholder="Search files & nodes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('');
+                  searchInputRef.current?.blur();
+                }
+              }}
+            />
+            {searchQuery && (
+              <button className="sidebar-search-clear" onClick={() => setSearchQuery('')} title="Clear search">
+                &times;
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Tree */}
         <div className="sidebar-tree">
           {creatingFileInFolder === '' && (
@@ -445,8 +587,11 @@ export default function Sidebar() {
           {folderName ? (
             <>
               <div
-                className="sidebar-folder-row"
+                className={`sidebar-folder-row${dragOverFolder === '' ? ' drag-over' : ''}`}
                 style={{ paddingLeft: 10 }}
+                onDragOver={(e) => handleFolderDragOver(e, '')}
+                onDragLeave={() => setDragOverFolder(null)}
+                onDrop={(e) => handleFolderDrop(e, '')}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setCtxMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: '' });
@@ -456,10 +601,10 @@ export default function Sidebar() {
                 <span className="sidebar-canvas-name" style={{ fontWeight: 600 }}>{folderName}</span>
               </div>
               {hasFiles ? (
-                renderTreeNodes(tree, 1)
+                renderTreeNodes(filteredTree, 1)
               ) : (
                 <div style={{ padding: '12px 10px 12px 26px', color: 'var(--text-muted)', fontSize: 11 }}>
-                  No canvas files found
+                  No files found
                 </div>
               )}
             </>
@@ -540,6 +685,18 @@ export default function Sidebar() {
                 Delete File
               </div>
             </>
+          )}
+
+          {ctxMenu.kind === 'image' && ctxMenu.imagePath && (
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                navigator.clipboard.writeText(`![${ctxMenu.imageName ?? ''}](${ctxMenu.imagePath!})`);
+                setCtxMenu(null);
+              }}
+            >
+              Copy as markdown
+            </div>
           )}
 
           {ctxMenu.kind === 'node' && ctxMenu.nodeId && (

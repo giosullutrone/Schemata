@@ -7,9 +7,10 @@ interface SettingsPopoverProps {
   onColorModeChange: (mode: ColorModeSetting) => void;
   snapMode: SnapMode;
   onSnapCycle: () => void;
+  onExport?: (format: 'png' | 'svg') => void;
 }
 
-export default function SettingsPopover({ colorMode, onColorModeChange, snapMode, onSnapCycle }: SettingsPopoverProps) {
+export default function SettingsPopover({ colorMode, onColorModeChange, snapMode, onSnapCycle, onExport }: SettingsPopoverProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,6 +55,17 @@ export default function SettingsPopover({ colorMode, onColorModeChange, snapMode
               {colorMode === 'light' ? 'Light' : colorMode === 'dark' ? 'Dark' : 'System'}
             </span>
           </button>
+          {onExport && (
+            <>
+              <div className="settings-popover-separator" />
+              <button className="settings-popover-item" onClick={() => { onExport('png'); setOpen(false); }}>
+                Export PNG
+              </button>
+              <button className="settings-popover-item" onClick={() => { onExport('svg'); setOpen(false); }}>
+                Export SVG
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

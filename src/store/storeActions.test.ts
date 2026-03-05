@@ -466,3 +466,171 @@ describe('dirty tracking', () => {
     expect(useCanvasStore.getState()._dirtyFiles[TEST_FILE]).toBeUndefined();
   });
 });
+
+// ---- setPreviewImage mutual exclusivity ----
+
+describe('setPreviewImage', () => {
+  beforeEach(() => setup());
+
+  it('should set previewImagePath and clear activeFilePath', () => {
+    expect(useCanvasStore.getState().activeFilePath).toBe(TEST_FILE);
+    useCanvasStore.getState().setPreviewImage('images/photo.png');
+    const state = useCanvasStore.getState();
+    expect(state.previewImagePath).toBe('images/photo.png');
+    expect(state.activeFilePath).toBeNull();
+  });
+
+  it('should clear previewImagePath when set to null', () => {
+    useCanvasStore.getState().setPreviewImage('images/photo.png');
+    useCanvasStore.getState().setPreviewImage(null);
+    const state = useCanvasStore.getState();
+    expect(state.previewImagePath).toBeNull();
+  });
+
+  it('should clear previewImagePath when setActiveFile is called', () => {
+    useCanvasStore.getState().setPreviewImage('images/photo.png');
+    expect(useCanvasStore.getState().previewImagePath).toBe('images/photo.png');
+    useCanvasStore.getState().setActiveFile(TEST_FILE);
+    const state = useCanvasStore.getState();
+    expect(state.activeFilePath).toBe(TEST_FILE);
+    expect(state.previewImagePath).toBeNull();
+  });
+});
+
+// ---- saveViewport epsilon comparison ----
+
+describe('saveViewport epsilon', () => {
+  beforeEach(() => {
+    setup();
+    useCanvasStore.getState().saveViewport({ x: 10, y: 20, zoom: 1.5 });
+  });
+
+  it('should skip update for near-identical viewport (floating-point drift)', () => {
+    const fileBefore = getFile();
+    // Simulate floating-point drift
+    useCanvasStore.getState().saveViewport({ x: 10 + 1e-10, y: 20 - 1e-10, zoom: 1.5 + 1e-10 });
+    expect(getFile()).toBe(fileBefore); // same reference — no update
+  });
+
+  it('should update when viewport differs beyond epsilon', () => {
+    useCanvasStore.getState().saveViewport({ x: 11, y: 20, zoom: 1.5 });
+    expect(getFile().viewport).toEqual({ x: 11, y: 20, zoom: 1.5 });
+  });
+});
+
+// ---- clearError ----
+
+describe('clearError', () => {
+  beforeEach(() => setup());
+
+  it('should clear _error state', () => {
+    useCanvasStore.setState({ _error: 'Something went wrong' });
+    expect(useCanvasStore.getState()._error).toBe('Something went wrong');
+    useCanvasStore.getState().clearError();
+    expect(useCanvasStore.getState()._error).toBeNull();
+  });
+
+  it('should be a no-op when no error exists', () => {
+    expect(useCanvasStore.getState()._error).toBeNull();
+    useCanvasStore.getState().clearError();
+    expect(useCanvasStore.getState()._error).toBeNull();
+  });
+});
+
+// ---- removeFile ----
+
+describe('removeFile', () => {
+  const SECOND_FILE = 'second.codecanvas.json';
+
+  beforeEach(() => {
+    useCanvasStore.getState().reset();
+    const f1: CodeCanvasFile = { version: '1.0', name: 'First', nodes: [], edges: [] };
+    const f2: CodeCanvasFile = { version: '1.0', name: 'Second', nodes: [], edges: [] };
+    useCanvasStore.setState({
+      files: { [TEST_FILE]: f1, [SECOND_FILE]: f2 },
+      activeFilePath: TEST_FILE,
+      lastSavedFiles: { [TEST_FILE]: f1, [SECOND_FILE]: f2 },
+      _dirtyFiles: { [TEST_FILE]: true },
+      fileHandles: {},
+    });
+  });
+
+  it('should remove the file from files map', async () => {
+    await useCanvasStore.getState().removeFile(TEST_FILE);
+    expect(useCanvasStore.getState().files[TEST_FILE]).toBeUndefined();
+    expect(useCanvasStore.getState().files[SECOND_FILE]).toBeDefined();
+  });
+
+  it('should remove from fileHandles, lastSavedFiles, _dirtyFiles', async () => {
+    await useCanvasStore.getState().removeFile(TEST_FILE);
+    const state = useCanvasStore.getState();
+    expect(state.fileHandles[TEST_FILE]).toBeUndefined();
+    expect(state.lastSavedFiles[TEST_FILE]).toBeUndefined();
+    expect(state._dirtyFiles[TEST_FILE]).toBeUndefined();
+  });
+
+  it('should switch activeFilePath to another file if the removed file was active', async () => {
+    expect(useCanvasStore.getState().activeFilePath).toBe(TEST_FILE);
+    await useCanvasStore.getState().removeFile(TEST_FILE);
+    expect(useCanvasStore.getState().activeFilePath).toBe(SECOND_FILE);
+  });
+
+  it('should set activeFilePath to null if no files remain', async () => {
+    await useCanvasStore.getState().removeFile(SECOND_FILE);
+    await useCanvasStore.getState().removeFile(TEST_FILE);
+    expect(useCanvasStore.getState().activeFilePath).toBeNull();
+  });
+
+  it('should be a no-op for non-existent file paths', async () => {
+    const stateBefore = useCanvasStore.getState();
+    const filesBefore = stateBefore.files;
+    await useCanvasStore.getState().removeFile('does-not-exist.codecanvas.json');
+    expect(useCanvasStore.getState().files).toBe(filesBefore);
+  });
+});
+
+// ---- setActiveFile ----
+
+describe('setActiveFile', () => {
+  beforeEach(() => setup());
+
+  it('should update activeFilePath', () => {
+    useCanvasStore.getState().setActiveFile('other-file.codecanvas.json');
+    expect(useCanvasStore.getState().activeFilePath).toBe('other-file.codecanvas.json');
+  });
+
+  it('should clear previewImagePath', () => {
+    useCanvasStore.setState({ previewImagePath: 'images/photo.png' });
+    useCanvasStore.getState().setActiveFile(TEST_FILE);
+    expect(useCanvasStore.getState().previewImagePath).toBeNull();
+  });
+});
+
+// ---- setSidebarOpen ----
+
+describe('setSidebarOpen', () => {
+  beforeEach(() => setup());
+
+  it('should update sidebarOpen state', () => {
+    useCanvasStore.getState().setSidebarOpen(false);
+    expect(useCanvasStore.getState().sidebarOpen).toBe(false);
+    useCanvasStore.getState().setSidebarOpen(true);
+    expect(useCanvasStore.getState().sidebarOpen).toBe(true);
+  });
+});
+
+// ---- addClassNode (additional tests) ----
+
+describe('addClassNode (additional)', () => {
+  beforeEach(() => setup());
+
+  it('should push an undo entry', () => {
+    useCanvasStore.getState().addClassNode(50, 50);
+    expect(useCanvasStore.getState()._undoStack).toHaveLength(1);
+  });
+
+  it('should mark the file as dirty', () => {
+    useCanvasStore.getState().addClassNode(50, 50);
+    expect(useCanvasStore.getState()._dirtyFiles[TEST_FILE]).toBe(true);
+  });
+});

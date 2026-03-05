@@ -116,6 +116,46 @@
   cursor: default;
 }
 
+/* --- Search --- */
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-secondary);
+  gap: 4px;
+}
+
+.sidebar-search-input {
+  flex: 1;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.sidebar-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.sidebar-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.sidebar-search-clear:hover {
+  color: var(--text-primary);
+}
+
 /* --- Tree --- */
 .sidebar-tree {
   flex: 1;
@@ -174,6 +214,12 @@
 
 .sidebar-folder-row:hover {
   background: var(--bg-hover);
+}
+
+.sidebar-folder-row.drag-over {
+  background: var(--bg-hover);
+  outline: 1px dashed var(--border-primary);
+  outline-offset: -1px;
 }
 
 .sidebar-folder-icon {

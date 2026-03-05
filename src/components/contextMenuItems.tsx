@@ -17,7 +17,7 @@ export function ColorRow({ onSelect }: { onSelect: (color: string) => void }) {
   );
 }
 
-export function StereotypeMenuItems({ onSet }: { onSet: (stereotype: Stereotype | undefined) => void }) {
+export function StereotypeMenuItems({ onSet, current }: { onSet: (stereotype: Stereotype | undefined) => void; current?: Stereotype }) {
   return (
     <>
       <div className="context-menu-item" onClick={() => onSet('interface')}>
@@ -29,9 +29,11 @@ export function StereotypeMenuItems({ onSet }: { onSet: (stereotype: Stereotype 
       <div className="context-menu-item" onClick={() => onSet('enum')}>
         Set &laquo;enum&raquo;
       </div>
-      <div className="context-menu-item" onClick={() => onSet(undefined)}>
-        Remove stereotype
-      </div>
+      {current && (
+        <div className="context-menu-item" onClick={() => onSet(undefined)}>
+          Remove stereotype
+        </div>
+      )}
     </>
   );
 }

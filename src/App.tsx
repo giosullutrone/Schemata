@@ -3,6 +3,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   applyNodeChanges,
   applyEdgeChanges,
   reconnectEdge,
@@ -27,10 +28,16 @@ import Sidebar from './components/Sidebar';
 import SettingsPopover from './components/SettingsPopover';
 import ContextMenu from './components/ContextMenu';
 import AlignmentGuides from './components/AlignmentGuides';
+import Toast from './components/Toast';
+import LoadingBar from './components/LoadingBar';
+import ShortcutsModal from './components/ShortcutsModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import { calculateGuides, type GuideLine, type NodeRect, type SnapResult } from './utils/alignment';
 import { EDGE_CONFIG, type UmlEdgeConfig } from './components/edges/edgeConfig';
 import { useCanvasStore } from './store/useCanvasStore';
+import { resolveImageUrl } from './utils/imageCache';
 import type { CanvasNodeSchema, ClassEdgeSchema, RelationshipType } from './types/schema';
+import { toPng, toSvg } from 'html-to-image';
 import type { ColorModeSetting, SnapMode } from './constants';
 
 const nodeTypes = { classNode: ClassNode, textNode: TextNode, groupNode: GroupNode };
@@ -49,7 +56,19 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const setCanvasEdges = useCanvasStore((s) => s.setCanvasEdges);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
 
-  const { screenToFlowPosition, setViewport, getNodes } = useReactFlow();
+  const { screenToFlowPosition, setViewport, getNodes, getEdges, setNodes, fitView, getZoom } = useReactFlow();
+  const zoom = useStore((s) => s.transform[2]);
+
+  // Clipboard for copy/paste (module-scoped so it survives re-renders)
+  const clipboardRef = useRef<{ nodes: CanvasNodeSchema[]; edges: ClassEdgeSchema[] } | null>(null);
+
+  // Track mouse position for paste-at-cursor
+  const mousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { mousePosRef.current = { x: e.clientX, y: e.clientY }; };
+    document.addEventListener('mousemove', handler);
+    return () => document.removeEventListener('mousemove', handler);
+  }, []);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -72,6 +91,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     labelWidth?: number;
     labelHeight?: number;
     draggingSource?: boolean;
+    markerFilled?: boolean;
   } | null>(null);
 
   // Track whether edge reconnection succeeded (for delete-on-drop)
@@ -116,7 +136,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
               markerUnits="userSpaceOnUse"
               overflow="visible"
             >
-              <path d={data.markerPath} fill={color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              <path d={data.markerPath} fill={data.markerFilled === false ? 'white' : color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
             </marker>
           </defs>
           <path
@@ -164,6 +184,22 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   const folderName = useCanvasStore((s) => s.folderName);
   const files = useCanvasStore((s) => s.files);
+  const folderHandle = useCanvasStore((s) => s.folderHandle);
+  const previewImagePath = useCanvasStore((s) => s.previewImagePath);
+
+  // Resolve preview image blob URL
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!previewImagePath || !folderHandle) {
+      setPreviewUrl(null);
+      return;
+    }
+    let cancelled = false;
+    resolveImageUrl(folderHandle, '', previewImagePath).then((url) => {
+      if (!cancelled) setPreviewUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, [previewImagePath, folderHandle]);
 
   // Keyboard shortcuts for node creation: N = new text node, Shift+N = new class
   useEffect(() => {
@@ -185,6 +221,101 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [canvas, screenToFlowPosition, addClassNode, addTextNode]);
+
+  // Keyboard shortcuts: Ctrl+A (select all), Ctrl+C/V (copy/paste), Ctrl+0 (zoom to fit)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+      if (isEditing) return;
+      if (!canvas) return;
+
+      // Ctrl+A — select all nodes
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        setNodes((nodes) => nodes.map((n) => ({ ...n, selected: true })));
+        return;
+      }
+
+      // Ctrl+C — copy selected nodes + connecting edges
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.shiftKey) {
+        const rfNodes = getNodes();
+        const selected = rfNodes.filter((n) => n.selected);
+        if (selected.length === 0) return;
+        e.preventDefault();
+        const selectedIds = new Set(selected.map((n) => n.id));
+        const storeNodes = canvas.nodes.filter((n) => selectedIds.has(n.id));
+        const storeEdges = canvas.edges.filter((e) => selectedIds.has(e.source) && selectedIds.has(e.target));
+        clipboardRef.current = { nodes: JSON.parse(JSON.stringify(storeNodes)), edges: JSON.parse(JSON.stringify(storeEdges)) };
+        return;
+      }
+
+      // Ctrl+V — paste copied nodes at mouse cursor position
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !e.shiftKey) {
+        if (!clipboardRef.current || clipboardRef.current.nodes.length === 0) return;
+        e.preventDefault();
+        pushUndoSnapshot();
+        const { nodes: copiedNodes, edges: copiedEdges } = clipboardRef.current;
+        const idMap = new Map<string, string>();
+        const store = useCanvasStore.getState();
+        const af = store.activeFilePath;
+        if (!af) return;
+        const file = store.files[af];
+        if (!file) return;
+
+        // Compute the center of the copied nodes
+        const minX = Math.min(...copiedNodes.map((n) => n.position.x));
+        const minY = Math.min(...copiedNodes.map((n) => n.position.y));
+        const maxX = Math.max(...copiedNodes.map((n) => n.position.x));
+        const maxY = Math.max(...copiedNodes.map((n) => n.position.y));
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        // Place pasted nodes centered on mouse cursor
+        const mouseFlow = screenToFlowPosition(mousePosRef.current);
+        const dx = mouseFlow.x - centerX;
+        const dy = mouseFlow.y - centerY;
+
+        // Generate new IDs and position at cursor
+        const newNodes: CanvasNodeSchema[] = copiedNodes.map((n) => {
+          const newId = `${n.type === 'classNode' ? 'class' : n.type === 'textNode' ? 'text' : 'group'}-paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          idMap.set(n.id, newId);
+          return { ...n, id: newId, position: { x: n.position.x + dx, y: n.position.y + dy } };
+        });
+
+        const newEdges: ClassEdgeSchema[] = copiedEdges
+          .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+          .map((e) => ({
+            ...e,
+            id: `edge-paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            source: idMap.get(e.source)!,
+            target: idMap.get(e.target)!,
+          }));
+
+        setCanvasNodes([...file.nodes, ...newNodes]);
+        setCanvasEdges([...file.edges, ...newEdges]);
+
+        // Select only the pasted nodes
+        setTimeout(() => {
+          const pastedIds = new Set(newNodes.map((n) => n.id));
+          setNodes((nodes) => nodes.map((n) => ({ ...n, selected: pastedIds.has(n.id) })));
+        }, 0);
+
+        // Update clipboard for cascaded pastes
+        clipboardRef.current = { nodes: JSON.parse(JSON.stringify(newNodes)), edges: JSON.parse(JSON.stringify(newEdges)) };
+        return;
+      }
+
+      // Ctrl+0 — zoom to fit
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        fitView({ padding: 0.2, duration: 300 });
+        return;
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [canvas, getNodes, getEdges, setNodes, setCanvasNodes, setCanvasEdges, pushUndoSnapshot, fitView, screenToFlowPosition]);
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -297,7 +428,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
               id: node.id, x: node.position.x, y: node.position.y,
               width: m?.w ?? 200, height: m?.h ?? 150,
             };
-            const result: SnapResult = calculateGuides(dragged, others);
+            const result: SnapResult = calculateGuides(dragged, others, 5, getZoom());
             setGuides(result.guides);
             if (result.snapDeltaX !== null || result.snapDeltaY !== null) {
               updated[nodeIdx] = {
@@ -494,14 +625,71 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     [updateEdgeData]
   );
 
+  // Handle image drop from sidebar — create a text node with markdown image
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    if (event.dataTransfer.types.includes('application/codecanvas-image')) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      const imagePath = event.dataTransfer.getData('application/codecanvas-image');
+      if (!imagePath) return;
+      event.preventDefault();
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const fileName = imagePath.split('/').pop() ?? 'image';
+      addTextNode(position.x, position.y, {
+        text: `![${fileName}](${imagePath})`,
+      });
+    },
+    [screenToFlowPosition, addTextNode]
+  );
+
   // Elevate edges that connect to sub-handles (property/method) so they render above nodes.
   // z-index 1001 is above selected nodes (z-index 1000 from xyflow's elevateNodesOnSelect).
-  const processedEdges = canvas?.edges.map((e) => {
-    const hasSubHandle =
-      (e.sourceHandle && !DIRECTIONAL_HANDLES.has(e.sourceHandle)) ||
-      (e.targetHandle && !DIRECTIONAL_HANDLES.has(e.targetHandle));
-    return hasSubHandle ? { ...e, zIndex: 1001 } : e;
-  }) ?? [];
+  const processedEdges = useMemo(() =>
+    canvas?.edges.map((e) => {
+      const hasSubHandle =
+        (e.sourceHandle && !DIRECTIONAL_HANDLES.has(e.sourceHandle)) ||
+        (e.targetHandle && !DIRECTIONAL_HANDLES.has(e.targetHandle));
+      return hasSubHandle ? { ...e, zIndex: 1001 } : e;
+    }) ?? [],
+    [canvas?.edges]
+  );
+
+  if (previewImagePath) {
+    const fileName = previewImagePath.split('/').pop() ?? previewImagePath;
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-secondary)', overflow: 'auto', padding: 24,
+      }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>{previewImagePath}</div>
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt={fileName}
+            style={{ maxWidth: '100%', maxHeight: 'calc(100% - 80px)', objectFit: 'contain', borderRadius: 4 }}
+          />
+        ) : (
+          <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading...</div>
+        )}
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(`![${fileName}](${previewImagePath})`);
+          }}
+          style={{
+            marginTop: 12, padding: '4px 12px', border: '1px solid var(--border-primary)', borderRadius: 4,
+            background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12,
+          }}
+        >
+          Copy markdown
+        </button>
+      </div>
+    );
+  }
 
   if (!canvas) {
     const hasFolderOpen = folderName !== null;
@@ -558,6 +746,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         onEdgeDoubleClick={handleEdgeDoubleClick}
         onPaneClick={() => setContextMenu(null)}
         onDoubleClick={handlePaneDoubleClick}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         zoomOnDoubleClick={false}
         panOnDrag={[1]}
         selectionOnDrag
@@ -570,6 +760,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         connectionLineComponent={ReconnectConnectionLine}
         connectionRadius={20}
         deleteKeyCode={['Backspace', 'Delete']}
+        style={{ '--zoom': zoom } as React.CSSProperties}
       >
         <Background gap={20} />
         <Controls />
@@ -597,25 +788,29 @@ function App() {
   const redo = useCanvasStore((s) => s.redo);
 
   const [colorMode, setColorMode] = useState<ColorModeSetting>(() => {
-    return (localStorage.getItem('codecanvas-color-mode') as ColorModeSetting) || 'system';
+    try { return (localStorage.getItem('codecanvas-color-mode') as ColorModeSetting) || 'system'; }
+    catch { return 'system'; }
   });
 
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
   const [snapMode, setSnapMode] = useState<SnapMode>(() => {
-    return (localStorage.getItem('codecanvas-snap-mode') as SnapMode) || 'grid';
+    try { return (localStorage.getItem('codecanvas-snap-mode') as SnapMode) || 'grid'; }
+    catch { return 'grid'; }
   });
 
   const handleSnapCycle = useCallback(() => {
     setSnapMode((prev) => {
       const next: Record<SnapMode, SnapMode> = { grid: 'guides', guides: 'none', none: 'grid' };
       const nextMode = next[prev];
-      localStorage.setItem('codecanvas-snap-mode', nextMode);
+      try { localStorage.setItem('codecanvas-snap-mode', nextMode); } catch { /* storage unavailable */ }
       return nextMode;
     });
   }, []);
 
   const handleColorModeChange = useCallback((mode: ColorModeSetting) => {
     setColorMode(mode);
-    localStorage.setItem('codecanvas-color-mode', mode);
+    try { localStorage.setItem('codecanvas-color-mode', mode); } catch { /* storage unavailable */ }
   }, []);
 
   // Resolve system preference for applying dark class
@@ -669,10 +864,42 @@ function App() {
         const store = useCanvasStore.getState();
         store.setSidebarOpen(!store.sidebarOpen);
       }
+      // ? — show keyboard shortcuts help
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !isEditing) {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+      }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [undo, redo]);
+
+  // Export canvas as PNG or SVG
+  const handleExport = useCallback((format: 'png' | 'svg') => {
+    const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!viewport) return;
+    const exportFn = format === 'png' ? toPng : toSvg;
+    exportFn(viewport, {
+      backgroundColor: 'transparent',
+      filter: (node) => {
+        // Exclude minimap, controls, and other overlays from export
+        if (node instanceof Element) {
+          const cl = node.classList;
+          if (cl?.contains('react-flow__minimap') || cl?.contains('react-flow__controls') || cl?.contains('react-flow__background')) return false;
+        }
+        return true;
+      },
+    }).then((dataUrl) => {
+      const a = document.createElement('a');
+      const store = useCanvasStore.getState();
+      const fileName = store.activeFilePath?.replace('.codecanvas.json', '') ?? 'canvas';
+      a.download = `${fileName}.${format}`;
+      a.href = dataUrl;
+      a.click();
+    }).catch((err) => {
+      useCanvasStore.setState({ _error: `Export failed: ${(err as Error).message}` });
+    });
+  }, []);
 
   // Warn before closing tab with unsaved changes
   useEffect(() => {
@@ -687,23 +914,29 @@ function App() {
   }, []);
 
   return (
-    <div
-      className={resolvedDark ? 'dark' : ''}
-      style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'row' }}
-    >
-      <ReactFlowProvider>
-        <Sidebar />
-        <div style={{ flex: 1, position: 'relative' }}>
-          <FlowCanvas colorMode={colorMode} snapMode={snapMode} />
-          <SettingsPopover
-            colorMode={colorMode}
-            onColorModeChange={handleColorModeChange}
-            snapMode={snapMode}
-            onSnapCycle={handleSnapCycle}
-          />
-        </div>
-      </ReactFlowProvider>
-    </div>
+    <ErrorBoundary>
+      <div
+        className={resolvedDark ? 'dark' : ''}
+        style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'row' }}
+      >
+        <ReactFlowProvider>
+          <Sidebar />
+          <div style={{ flex: 1, position: 'relative' }}>
+            <FlowCanvas colorMode={colorMode} snapMode={snapMode} />
+            <SettingsPopover
+              colorMode={colorMode}
+              onColorModeChange={handleColorModeChange}
+              snapMode={snapMode}
+              onSnapCycle={handleSnapCycle}
+              onExport={handleExport}
+            />
+          </div>
+        </ReactFlowProvider>
+        <LoadingBar />
+        <Toast />
+        {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      </div>
+    </ErrorBoundary>
   );
 }
 

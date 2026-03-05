@@ -6,7 +6,7 @@ import {
   type EdgeProps,
   type Edge,
 } from '@xyflow/react';
-import type { ClassEdgeData, RelationshipType } from '../../types/schema';
+import type { ClassEdgeData, ClassEdgeSchema, RelationshipType } from '../../types/schema';
 import { useCanvasStore } from '../../store/useCanvasStore';
 import { EDGE_CONFIG } from './edgeConfig';
 import './UmlEdge.css';
@@ -80,7 +80,9 @@ export default function UmlEdge({
     }
   }, [editing]);
 
-  // Persist CSS-resize dimensions so they survive edge remounts (e.g., reconnection)
+  // Persist CSS-resize dimensions so they survive edge remounts (e.g., reconnection).
+  // Uses setCanvasEdges (no undo push) to avoid flooding the undo stack on every resize frame.
+  const setCanvasEdges = useCanvasStore((s) => s.setCanvasEdges);
   useEffect(() => {
     const el = labelRef.current;
     if (!el || editing) return;
@@ -89,12 +91,20 @@ export default function UmlEdge({
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       if (w !== dataWidthRef.current || h !== dataHeightRef.current) {
-        updateEdgeData(id, { labelWidth: w, labelHeight: h });
+        const store = useCanvasStore.getState();
+        const af = store.activeFilePath;
+        if (!af) return;
+        const edges = store.files[af]?.edges;
+        if (!edges) return;
+        const updated = edges.map((e) =>
+          e.id === id ? { ...e, data: { ...e.data, labelWidth: w, labelHeight: h } } : e
+        ) as ClassEdgeSchema[];
+        setCanvasEdges(updated);
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [editing, id, updateEdgeData]);
+  }, [editing, id, setCanvasEdges]);
 
   const commitLabel = useCallback(
     (cancelled?: boolean) => {
@@ -132,7 +142,7 @@ export default function UmlEdge({
           markerUnits="userSpaceOnUse"
           overflow="visible"
         >
-          <path d={config.markerPath} fill={color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={config.markerPath} fill={config.markerFilled === false ? 'white' : color} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         </marker>
       </defs>
       <BaseEdge
@@ -173,6 +183,7 @@ export default function UmlEdge({
               <textarea
                 ref={inputRef}
                 className="uml-edge-label-input nodrag nopan"
+                aria-label="Edit edge label"
                 value={draft}
                 rows={1}
                 onChange={(e) => {

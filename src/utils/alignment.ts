@@ -20,8 +20,10 @@ export interface SnapResult {
 export function calculateGuides(
   dragged: NodeRect,
   others: NodeRect[],
-  threshold: number = 5
+  threshold: number = 5,
+  zoom: number = 1,
 ): SnapResult {
+  const scaledThreshold = threshold / zoom;
   const guides: GuideLine[] = [];
   let bestDeltaX: number | null = null;
   let bestDistX = Infinity;
@@ -51,7 +53,7 @@ export function calculateGuides(
 
     for (const { dragVal, otherVal } of hChecks) {
       const dist = Math.abs(dragVal - otherVal);
-      if (dist <= threshold) {
+      if (dist <= scaledThreshold) {
         if (!guides.some((g) => g.orientation === 'horizontal' && g.pos === otherVal)) {
           guides.push({ orientation: 'horizontal', pos: otherVal });
         }
@@ -72,7 +74,7 @@ export function calculateGuides(
 
     for (const { dragVal, otherVal } of vChecks) {
       const dist = Math.abs(dragVal - otherVal);
-      if (dist <= threshold) {
+      if (dist <= scaledThreshold) {
         if (!guides.some((g) => g.orientation === 'vertical' && g.pos === otherVal)) {
           guides.push({ orientation: 'vertical', pos: otherVal });
         }
@@ -84,5 +86,22 @@ export function calculateGuides(
     }
   }
 
-  return { guides, snapDeltaX: bestDeltaX, snapDeltaY: bestDeltaY };
+  // Filter guides to only show lines that the node actually aligns with
+  // after snapping. Without this, non-best-match guides can be off by
+  // up to `scaledThreshold` pixels, which looks misleading.
+  const snappedEdgesX = new Set([
+    dragged.x + (bestDeltaX ?? 0),
+    draggedRight + (bestDeltaX ?? 0),
+    draggedCenterX + (bestDeltaX ?? 0),
+  ]);
+  const snappedEdgesY = new Set([
+    dragged.y + (bestDeltaY ?? 0),
+    draggedBottom + (bestDeltaY ?? 0),
+    draggedCenterY + (bestDeltaY ?? 0),
+  ]);
+  const filteredGuides = guides.filter((g) =>
+    g.orientation === 'vertical' ? snappedEdgesX.has(g.pos) : snappedEdgesY.has(g.pos)
+  );
+
+  return { guides: filteredGuides, snapDeltaX: bestDeltaX, snapDeltaY: bestDeltaY };
 }

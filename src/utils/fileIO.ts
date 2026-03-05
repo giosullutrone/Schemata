@@ -71,8 +71,13 @@ export function validateFile(file: CodeCanvasFile): string[] {
 
 export async function writeToHandle(handle: FileSystemFileHandle, file: CodeCanvasFile): Promise<void> {
   const writable = await handle.createWritable();
-  await writable.write(serializeFile(file));
-  await writable.close();
+  try {
+    await writable.write(serializeFile(file));
+    await writable.close();
+  } catch (err) {
+    await writable.abort();
+    throw err;
+  }
 }
 
 export interface ScannedFile {
@@ -92,35 +97,51 @@ export async function openFolder(): Promise<FileSystemDirectoryHandle | null> {
 }
 
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg', '__pycache__', '.next', 'dist', 'build']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
+
+export interface ScanResult {
+  files: ScannedFile[];
+  imagePaths: string[];
+}
 
 export async function scanFolder(
   dirHandle: FileSystemDirectoryHandle,
   basePath: string = '',
-): Promise<ScannedFile[]> {
-  const results: ScannedFile[] = [];
+): Promise<ScanResult> {
+  const files: ScannedFile[] = [];
+  const imagePaths: string[] = [];
   for await (const entry of dirHandle.values()) {
     const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
     if (entry.kind === 'directory') {
       if (EXCLUDED_DIRS.has(entry.name)) continue;
-      const subResults = await scanFolder(entry as FileSystemDirectoryHandle, entryPath);
-      results.push(...subResults);
-    } else if (entry.kind === 'file' && entry.name.endsWith('.codecanvas.json')) {
-      const fileHandle = entry as FileSystemFileHandle;
-      try {
-        const fileObj = await fileHandle.getFile();
-        const text = await fileObj.text();
-        const parsed = deserializeFile(text);
-        const errors = validateFile(parsed);
-        if (errors.length === 0) {
-          results.push({ relativePath: entryPath, file: parsed, handle: fileHandle });
+      const sub = await scanFolder(entry as FileSystemDirectoryHandle, entryPath);
+      files.push(...sub.files);
+      imagePaths.push(...sub.imagePaths);
+    } else if (entry.kind === 'file') {
+      if (entry.name.endsWith('.codecanvas.json')) {
+        const fileHandle = entry as FileSystemFileHandle;
+        try {
+          const fileObj = await fileHandle.getFile();
+          const text = await fileObj.text();
+          const parsed = deserializeFile(text);
+          const errors = validateFile(parsed);
+          if (errors.length === 0) {
+            files.push({ relativePath: entryPath, file: parsed, handle: fileHandle });
+          }
+        } catch {
+          // Skip malformed files
         }
-      } catch {
-        // Skip malformed files
+      } else {
+        const dot = entry.name.lastIndexOf('.');
+        if (dot >= 0 && IMAGE_EXTENSIONS.has(entry.name.substring(dot).toLowerCase())) {
+          imagePaths.push(entryPath);
+        }
       }
     }
   }
-  results.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  return results;
+  files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  imagePaths.sort();
+  return { files, imagePaths };
 }
 
 export async function createFileInFolder(
