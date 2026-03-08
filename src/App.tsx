@@ -64,6 +64,8 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   // Track mouse position for paste-at-cursor
   const mousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Track last selection-drag timestamp to suppress spurious double-clicks
+  const lastSelectionDragRef = useRef(0);
   useEffect(() => {
     const handler = (e: MouseEvent) => { mousePosRef.current = { x: e.clientX, y: e.clientY }; };
     document.addEventListener('mousemove', handler);
@@ -614,10 +616,17 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
     groupDragContainedRef.current = null;
   }, []);
 
+  // Mark the end of a selection-drag so we can suppress spurious double-clicks
+  const handleSelectionEnd = useCallback(() => {
+    lastSelectionDragRef.current = Date.now();
+  }, []);
+
   // Double-click on empty canvas: plain double-click creates text node, Shift+double-click creates class
   const handlePaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
-      // Only trigger on the pane itself, not on nodes or edges
+      // Suppress if a selection-drag just ended (two quick drags can fire dblclick)
+      if (Date.now() - lastSelectionDragRef.current < 300) return;
+      // Only trigger on the pane itself, not on nodes, edges, or selection overlays
       const target = event.target as HTMLElement;
       if (target.closest('.react-flow__node') || target.closest('.react-flow__edge')) return;
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
@@ -711,7 +720,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   // Handle image/PDF drop from sidebar — create a text node with markdown reference
   const handleDragOver = useCallback((event: React.DragEvent) => {
-    if (event.dataTransfer.types.includes('application/codecanvas-image') || event.dataTransfer.types.includes('application/codecanvas-pdf')) {
+    if (event.dataTransfer.types.includes('application/schemata-image') || event.dataTransfer.types.includes('application/schemata-pdf')) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
     }
@@ -719,7 +728,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
 
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
-      const mediaPath = event.dataTransfer.getData('application/codecanvas-image') || event.dataTransfer.getData('application/codecanvas-pdf');
+      const mediaPath = event.dataTransfer.getData('application/schemata-image') || event.dataTransfer.getData('application/schemata-pdf');
       if (!mediaPath) return;
       event.preventDefault();
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
@@ -741,6 +750,18 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       return hasSubHandle ? { ...e, zIndex: 1001 } : e;
     }) ?? [],
     [canvas?.edges]
+  );
+
+  // Make group node wrappers transparent to pointer events so edges and child
+  // handles inside the group are reachable.  Also restrict dragging to the
+  // border overlay element (.group-drag-zone) via dragHandle.
+  const processedNodes = useMemo(() =>
+    canvas?.nodes.map((n) =>
+      n.type === 'groupNode'
+        ? { ...n, dragHandle: '.group-drag-zone', style: { ...n.style, pointerEvents: 'none' as const } }
+        : n
+    ) ?? [],
+    [canvas?.nodes]
   );
 
   if (previewImagePath) {
@@ -844,7 +865,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   return (
     <>
       <ReactFlow
-        nodes={canvas.nodes}
+        nodes={processedNodes}
         edges={processedEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -861,6 +882,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeContextMenu={handleEdgeContextMenu}
         onSelectionContextMenu={handleSelectionContextMenu}
+        onSelectionEnd={handleSelectionEnd}
         onEdgeDoubleClick={handleEdgeDoubleClick}
         onPaneClick={() => setContextMenu(null)}
         onDoubleClick={handlePaneDoubleClick}
@@ -909,14 +931,14 @@ function App() {
   const redo = useCanvasStore((s) => s.redo);
 
   const [colorMode, setColorMode] = useState<ColorModeSetting>(() => {
-    try { return (localStorage.getItem('codecanvas-color-mode') as ColorModeSetting) || 'system'; }
+    try { return (localStorage.getItem('schemata-color-mode') as ColorModeSetting) || 'system'; }
     catch { return 'system'; }
   });
 
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   const [snapMode, setSnapMode] = useState<SnapMode>(() => {
-    try { return (localStorage.getItem('codecanvas-snap-mode') as SnapMode) || 'grid'; }
+    try { return (localStorage.getItem('schemata-snap-mode') as SnapMode) || 'grid'; }
     catch { return 'grid'; }
   });
 
@@ -924,14 +946,14 @@ function App() {
     setSnapMode((prev) => {
       const next: Record<SnapMode, SnapMode> = { grid: 'guides', guides: 'none', none: 'grid' };
       const nextMode = next[prev];
-      try { localStorage.setItem('codecanvas-snap-mode', nextMode); } catch { /* storage unavailable */ }
+      try { localStorage.setItem('schemata-snap-mode', nextMode); } catch { /* storage unavailable */ }
       return nextMode;
     });
   }, []);
 
   const handleColorModeChange = useCallback((mode: ColorModeSetting) => {
     setColorMode(mode);
-    try { localStorage.setItem('codecanvas-color-mode', mode); } catch { /* storage unavailable */ }
+    try { localStorage.setItem('schemata-color-mode', mode); } catch { /* storage unavailable */ }
   }, []);
 
   // Resolve system preference for applying dark class
@@ -1013,7 +1035,7 @@ function App() {
     }).then((dataUrl) => {
       const a = document.createElement('a');
       const store = useCanvasStore.getState();
-      const fileName = store.activeFilePath?.replace('.codecanvas.json', '') ?? 'canvas';
+      const fileName = store.activeFilePath?.replace('.schemata.json', '') ?? 'canvas';
       a.download = `${fileName}.${format}`;
       a.href = dataUrl;
       a.click();

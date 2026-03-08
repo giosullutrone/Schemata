@@ -15,6 +15,13 @@ html, body, #root {
   outline-offset: 1px;
 }
 
+/* Prevent React Flow's selection rect border from appearing as a
+   visible dot at the viewport origin after an empty drag-selection. */
+.react-flow__nodesselection-rect {
+  border: none !important;
+  background: none !important;
+}
+
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #fafafa;

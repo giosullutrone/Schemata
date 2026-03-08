@@ -9,6 +9,50 @@
   padding: 4px 8px;
 }
 
+/* Drag/selection zone for the group node.
+   Not selected: hollow border frame (clip-path) — click the border to select
+   without blocking edges or child nodes in the interior.
+   Selected: full area — drag anywhere inside to move the group. */
+.group-drag-zone {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: auto;
+  /* Hollow frame: outer rect minus inner rect (10px border zone).
+     Covers the 2px visible border + 8px inside for a comfortable
+     hit target. Stays within the wrapper so clicks outside the border
+     correctly reach the pane. */
+  clip-path: polygon(
+    evenodd,
+    0% 0%, 100% 0%, 100% 100%, 0% 100%,
+    10px 10px, 10px calc(100% - 10px), calc(100% - 10px) calc(100% - 10px), calc(100% - 10px) 10px
+  );
+  /* Invisible background so the clipped frame is a pointer-event hit target */
+  background: rgba(0, 0, 0, 0.001);
+}
+
+.group-node.selected .group-drag-zone {
+  inset: 0;
+  border-radius: 8px;
+  clip-path: none;
+}
+
+/* Re-enable pointer events on interactive children.
+   Handles and resize controls already have position:absolute from
+   React Flow — do NOT override their position. */
+.group-node .react-flow__handle,
+.group-node .react-flow__resize-control {
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.group-node-label,
+.group-node-label-input {
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
 .group-node.selected {
   border-style: solid;
 }
@@ -22,6 +66,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .group-node-label-input {
