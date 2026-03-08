@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useCanvasStore } from './useCanvasStore';
 
-const TEST_FILE_PATH = 'test.codecanvas.json';
+const TEST_FILE_PATH = 'test.schemata.json';
 
 function setupTestFile() {
   useCanvasStore.setState({
@@ -75,8 +75,8 @@ describe('Undo/Redo', () => {
   });
 
   it('should undo to the correct file in a multi-file setup', () => {
-    const FILE_A = 'a.codecanvas.json';
-    const FILE_B = 'b.codecanvas.json';
+    const FILE_A = 'a.schemata.json';
+    const FILE_B = 'b.schemata.json';
     useCanvasStore.setState({
       files: {
         [FILE_A]: { version: '1.0', name: 'A', nodes: [], edges: [] },

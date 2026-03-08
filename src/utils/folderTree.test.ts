@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildFolderTree } from './folderTree';
-import type { CodeCanvasFile } from '../types/schema';
+import type { SchemataFile } from '../types/schema';
 
-function makeFile(name: string): CodeCanvasFile {
+function makeFile(name: string): SchemataFile {
   return { version: '1.0', name, nodes: [], edges: [] };
 }
 
@@ -13,8 +13,8 @@ describe('buildFolderTree', () => {
 
   it('should return flat file nodes for root-level files', () => {
     const tree = buildFolderTree({
-      'models.codecanvas.json': makeFile('Models'),
-      'api.codecanvas.json': makeFile('API'),
+      'models.schemata.json': makeFile('Models'),
+      'api.schemata.json': makeFile('API'),
     });
     expect(tree).toHaveLength(2);
     expect(tree[0].kind).toBe('file');
@@ -25,7 +25,7 @@ describe('buildFolderTree', () => {
 
   it('should create folder nodes for nested files', () => {
     const tree = buildFolderTree({
-      'src/api.codecanvas.json': makeFile('API'),
+      'src/api.schemata.json': makeFile('API'),
     });
     expect(tree).toHaveLength(1);
     expect(tree[0].kind).toBe('folder');
@@ -40,7 +40,7 @@ describe('buildFolderTree', () => {
 
   it('should create intermediate folders', () => {
     const tree = buildFolderTree({
-      'src/auth/users.codecanvas.json': makeFile('Users'),
+      'src/auth/users.schemata.json': makeFile('Users'),
     });
     expect(tree).toHaveLength(1);
     const src = tree[0];
@@ -61,9 +61,9 @@ describe('buildFolderTree', () => {
 
   it('should sort folders before files, both alphabetically', () => {
     const tree = buildFolderTree({
-      'zebra.codecanvas.json': makeFile('Zebra'),
-      'src/api.codecanvas.json': makeFile('API'),
-      'alpha.codecanvas.json': makeFile('Alpha'),
+      'zebra.schemata.json': makeFile('Zebra'),
+      'src/api.schemata.json': makeFile('API'),
+      'alpha.schemata.json': makeFile('Alpha'),
     });
     expect(tree).toHaveLength(3);
     expect(tree[0].kind).toBe('folder');
@@ -76,14 +76,14 @@ describe('buildFolderTree', () => {
 
   it('should include fileName in file nodes', () => {
     const tree = buildFolderTree({
-      'src/models.codecanvas.json': makeFile('Models'),
+      'src/models.schemata.json': makeFile('Models'),
     });
     const folder = tree[0];
     if (folder.kind === 'folder') {
       const file = folder.children[0];
       if (file.kind === 'file') {
-        expect(file.fileName).toBe('models.codecanvas.json');
-        expect(file.relativePath).toBe('src/models.codecanvas.json');
+        expect(file.fileName).toBe('models.schemata.json');
+        expect(file.relativePath).toBe('src/models.schemata.json');
       }
     }
   });

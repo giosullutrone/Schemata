@@ -239,7 +239,7 @@ export default function UmlEdge({
         <EdgeLabelRenderer>
           <div
             ref={labelRef}
-            className={`uml-edge-label nodrag nopan nowheel${editing ? ' editing' : ''}`}
+            className={`uml-edge-label nodrag${selected || editing ? ' nopan nowheel' : ''}${editing ? ' editing' : ''}`}
             data-edge-id={id}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,

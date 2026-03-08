@@ -1,6 +1,6 @@
-# CodeCanvas Claude Code Plugin — Design
+# Schemata Claude Code Plugin — Design
 
-**Goal:** Create a standalone Claude Code plugin that teaches Claude how to manipulate UML diagrams on the CodeCanvas via its REST API (31 endpoints running as Vite middleware).
+**Goal:** Create a standalone Claude Code plugin that teaches Claude how to manipulate UML diagrams on the Schemata via its REST API (31 endpoints running as Vite middleware).
 
 **Architecture:** A single-skill plugin. The skill's SKILL.md contains trigger metadata, a compact API reference, workflow guidance, and example curl workflows. Claude uses the Bash tool to issue curl commands — no MCP server or extra infrastructure needed.
 
@@ -9,7 +9,7 @@
 ## Plugin Structure
 
 ```
-codecanvas-plugin/
+schemata-plugin/
 ├── .claude-plugin/
 │   └── plugin.json
 └── skills/
@@ -21,8 +21,8 @@ codecanvas-plugin/
 
 ```json
 {
-  "name": "codecanvas",
-  "description": "Claude Code plugin for manipulating UML diagrams via the CodeCanvas REST API",
+  "name": "schemata",
+  "description": "Claude Code plugin for manipulating UML diagrams via the Schemata REST API",
   "version": "1.0.0"
 }
 ```
@@ -44,8 +44,8 @@ description: >
   "add a class node", "connect two classes", "add an inheritance relationship",
   "lay out the diagram", "search the canvas", "add a text note",
   "create a UML diagram", "modify the canvas", "save the diagram",
-  "open a project folder", "undo", or mentions CodeCanvas API operations.
-  Activates for any request involving visual diagram manipulation on the CodeCanvas.
+  "open a project folder", "undo", or mentions Schemata API operations.
+  Activates for any request involving visual diagram manipulation on the Schemata.
 ```
 
 ### SKILL.md Body Sections
@@ -142,5 +142,5 @@ Eight curl-based examples showing common multi-step operations:
 
 | File | Description |
 |------|-------------|
-| `codecanvas-plugin/.claude-plugin/plugin.json` | Plugin manifest |
-| `codecanvas-plugin/skills/canvas-api/SKILL.md` | Skill definition with API reference and examples |
+| `schemata-plugin/.claude-plugin/plugin.json` | Plugin manifest |
+| `schemata-plugin/skills/canvas-api/SKILL.md` | Skill definition with API reference and examples |

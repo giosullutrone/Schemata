@@ -1,8 +1,8 @@
-# CodeCanvas: xyflow Standard Alignment
+# Schemata: xyflow Standard Alignment
 
 ## Problem
 
-CodeCanvas uses @xyflow/react but diverges from standard patterns in several ways, causing bugs (missing `onEdgesChange`), performance issues (`useEdges()` in every edge), and missing standard UX components.
+Schemata uses @xyflow/react but diverges from standard patterns in several ways, causing bugs (missing `onEdgesChange`), performance issues (`useEdges()` in every edge), and missing standard UX components.
 
 ## Changes
 

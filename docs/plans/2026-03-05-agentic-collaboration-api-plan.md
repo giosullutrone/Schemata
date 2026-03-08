@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add a REST API to CodeCanvas so external LLM agents can read and manipulate the canvas via HTTP endpoints.
+**Goal:** Add a REST API to Schemata so external LLM agents can read and manipulate the canvas via HTTP endpoints.
 
 **Architecture:** Hono HTTP server runs as Vite middleware on the same port as the dev server. It communicates with the browser's Zustand store via Vite's HMR WebSocket channel (bridge pattern). 31 REST endpoints wrap store actions directly.
 
@@ -1028,7 +1028,7 @@ describe('GET /api/files', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('returns file list', async () => {
-    mockCallStore.mockResolvedValueOnce([{ path: 'diagram.codecanvas.json', name: 'Diagram' }]);
+    mockCallStore.mockResolvedValueOnce([{ path: 'diagram.schemata.json', name: 'Diagram' }]);
     const res = await app.request('/api/files');
     const json = await res.json();
     expect(json.data).toHaveLength(1);
@@ -1037,7 +1037,7 @@ describe('GET /api/files', () => {
 
 describe('GET /api/files/active', () => {
   it('returns active file', async () => {
-    mockCallStore.mockResolvedValueOnce({ path: 'diagram.codecanvas.json', name: 'Diagram' });
+    mockCallStore.mockResolvedValueOnce({ path: 'diagram.schemata.json', name: 'Diagram' });
     const res = await app.request('/api/files/active');
     expect(res.status).toBe(200);
   });
@@ -1055,10 +1055,10 @@ describe('PUT /api/files/active', () => {
     const res = await app.request('/api/files/active', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: 'other.codecanvas.json' }),
+      body: JSON.stringify({ path: 'other.schemata.json' }),
     });
     expect(res.status).toBe(200);
-    expect(mockCallStore).toHaveBeenCalledWith('setActiveFile', ['other.codecanvas.json']);
+    expect(mockCallStore).toHaveBeenCalledWith('setActiveFile', ['other.schemata.json']);
   });
 });
 
@@ -1511,9 +1511,9 @@ const mockFs = vi.mocked(fs);
 describe('scanFolderFs', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('finds .codecanvas.json files', async () => {
+  it('finds .schemata.json files', async () => {
     mockFs.readdir.mockResolvedValueOnce([
-      { name: 'diagram.codecanvas.json', isFile: () => true, isDirectory: () => false },
+      { name: 'diagram.schemata.json', isFile: () => true, isDirectory: () => false },
     ] as never);
     mockFs.readFile.mockResolvedValueOnce(JSON.stringify({
       version: '1.0', name: 'Diagram', nodes: [], edges: [],
@@ -1521,7 +1521,7 @@ describe('scanFolderFs', () => {
 
     const result = await scanFolderFs('/test/folder');
     expect(result.files).toHaveLength(1);
-    expect(result.files[0].relativePath).toBe('diagram.codecanvas.json');
+    expect(result.files[0].relativePath).toBe('diagram.schemata.json');
   });
 
   it('finds images', async () => {
@@ -1555,13 +1555,13 @@ Create `src/server/fsScanner.ts`:
 ```typescript
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { CodeCanvasFile } from '../types/schema.js';
+import type { SchemataFile } from '../types/schema.js';
 
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg', '__pycache__', '.next', 'dist', 'build']);
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
 
 export interface FsScanResult {
-  files: Array<{ relativePath: string; file: CodeCanvasFile }>;
+  files: Array<{ relativePath: string; file: SchemataFile }>;
   imagePaths: string[];
   pdfPaths: string[];
   warnings: string[];
@@ -1591,10 +1591,10 @@ export async function scanFolderFs(rootPath: string, basePath = ''): Promise<FsS
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
 
-      if (entry.name.endsWith('.codecanvas.json')) {
+      if (entry.name.endsWith('.schemata.json')) {
         try {
           const content = await fs.readFile(path.join(dirPath, entry.name), 'utf-8');
-          const file = JSON.parse(content) as CodeCanvasFile;
+          const file = JSON.parse(content) as SchemataFile;
           result.files.push({ relativePath, file });
         } catch (err) {
           result.warnings.push(`Failed to parse ${relativePath}: ${err}`);
@@ -1617,7 +1617,7 @@ export async function scanFolderFs(rootPath: string, basePath = ''): Promise<FsS
 Add to the state interface in `src/store/useCanvasStore.ts` (around line 250):
 
 ```typescript
-loadFolder: (name: string, files: Record<string, CodeCanvasFile>, imagePaths: string[], pdfPaths: string[]) => void;
+loadFolder: (name: string, files: Record<string, SchemataFile>, imagePaths: string[], pdfPaths: string[]) => void;
 ```
 
 Add the implementation (in the `set` actions section):
@@ -1654,7 +1654,7 @@ Add to `handleAction` in `src/bridge/client.ts`:
 case 'loadFolder': {
   store.loadFolder(
     args[0] as string,
-    args[1] as Record<string, CodeCanvasFile>,
+    args[1] as Record<string, SchemataFile>,
     args[2] as string[],
     args[3] as string[],
   );
@@ -1671,7 +1671,7 @@ import { Hono } from 'hono';
 import * as path from 'node:path';
 import { callStore } from '../bridge.js';
 import { scanFolderFs } from '../fsScanner.js';
-import type { CodeCanvasFile } from '../../types/schema.js';
+import type { SchemataFile } from '../../types/schema.js';
 
 const folder = new Hono();
 
@@ -1687,7 +1687,7 @@ folder.post('/open', async (c) => {
   const folderName = path.basename(folderPath);
   const scan = await scanFolderFs(folderPath);
 
-  const files: Record<string, CodeCanvasFile> = {};
+  const files: Record<string, SchemataFile> = {};
   for (const f of scan.files) {
     files[f.relativePath] = f.file;
   }

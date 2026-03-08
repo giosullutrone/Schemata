@@ -36,7 +36,13 @@ export default function canvasApiPlugin(): Plugin {
 
         res.statusCode = fetchRes.status;
         fetchRes.headers.forEach((v, k) => res.setHeader(k, v));
-        res.end(await fetchRes.text());
+
+        const contentType = fetchRes.headers.get('content-type') || '';
+        if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
+          res.end(Buffer.from(await fetchRes.arrayBuffer()));
+        } else {
+          res.end(await fetchRes.text());
+        }
       });
     },
   };

@@ -4,3 +4,8 @@ export const COLOR_NAMES = ['Blue', 'Red', 'Green', 'Yellow', 'Purple', 'Teal', 
 export type ColorModeSetting = 'light' | 'dark' | 'system';
 
 export type SnapMode = 'grid' | 'guides' | 'none';
+
+/** Padding around child nodes when creating/fitting a group */
+export const GROUP_PADDING = 20;
+/** Height reserved for the group label above content */
+export const GROUP_LABEL_HEIGHT = 24;

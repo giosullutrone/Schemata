@@ -26,7 +26,10 @@ const SHORTCUTS = [
   { key: 'Ctrl + S', desc: 'Save current file' },
   { key: 'Ctrl + Shift + S', desc: 'Save all files' },
   { section: 'View' },
+  { key: 'Ctrl + F', desc: 'Search canvas' },
   { key: 'Ctrl + 0', desc: 'Fit view' },
+  { key: 'Ctrl + =', desc: 'Zoom in' },
+  { key: 'Ctrl + -', desc: 'Zoom out' },
   { key: 'Ctrl + B', desc: 'Toggle sidebar' },
   { key: '?', desc: 'Show this help' },
 ] as const;

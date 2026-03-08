@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useCanvasStore, migrateFile } from './useCanvasStore';
-import type { CodeCanvasFile } from '../types/schema';
+import type { SchemataFile } from '../types/schema';
 
-const TEST_FILE_PATH = 'test.codecanvas.json';
+const TEST_FILE_PATH = 'test.schemata.json';
 
 /** Set up store with a single test file + active path so actions work */
 function setupTestFile() {
@@ -471,7 +471,7 @@ describe('Edge label lifecycle', () => {
 
 describe('migrateFile', () => {
   it('should return the same file when no migration is needed', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Test',
       nodes: [
@@ -491,7 +491,7 @@ describe('migrateFile', () => {
         { id: 'c1', type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [{ name: 'x', type: 'int', visibility: 'public' }], methods: [{ name: 'foo', parameters: [], returnType: 'void', visibility: 'public' }] } },
       ],
       edges: [],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const result = migrateFile(file);
     expect(result).not.toBe(file); // new object
     const node = result.nodes[0];
@@ -502,7 +502,7 @@ describe('migrateFile', () => {
   });
 
   it('should not modify non-classNode nodes', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Test',
       nodes: [

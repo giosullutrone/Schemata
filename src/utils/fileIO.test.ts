@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { serializeFile, deserializeFile, validateFile } from './fileIO';
 import { migrateFile } from '../store/useCanvasStore';
-import type { CodeCanvasFile, CanvasNodeSchema } from '../types/schema';
+import type { SchemataFile, CanvasNodeSchema } from '../types/schema';
 
-const validFile: CodeCanvasFile = {
+const validFile: SchemataFile = {
   version: '1.0',
   name: 'Test',
   nodes: [
@@ -47,13 +47,13 @@ describe('fileIO', () => {
   });
 
   it('should reject a file without version', () => {
-    const bad = { ...validFile, version: undefined } as unknown as CodeCanvasFile;
+    const bad = { ...validFile, version: undefined } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.length).toBeGreaterThan(0);
   });
 
   it('should reject a file without nodes', () => {
-    const bad = { version: '1.0', name: 'X' } as unknown as CodeCanvasFile;
+    const bad = { version: '1.0', name: 'X' } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.length).toBeGreaterThan(0);
   });
@@ -107,7 +107,7 @@ describe('fileIO', () => {
     const bad = {
       ...validFile,
       nodes: [{ id: 'x', type: 'unknown', position: { x: 0, y: 0 }, data: {} }],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.some((e) => e.includes('invalid type'))).toBe(true);
   });
@@ -116,7 +116,7 @@ describe('fileIO', () => {
     const bad = {
       ...validFile,
       nodes: [{ type: 'classNode', position: { x: 0, y: 0 }, data: { name: 'A', properties: [], methods: [] } }],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.some((e) => e.includes('missing "id"'))).toBe(true);
   });
@@ -125,7 +125,7 @@ describe('fileIO', () => {
     const bad = {
       ...validFile,
       nodes: [{ id: 'x', type: 'classNode', data: { name: 'A', properties: [], methods: [] } }],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.some((e) => e.includes('position'))).toBe(true);
   });
@@ -134,7 +134,7 @@ describe('fileIO', () => {
     const bad = {
       ...validFile,
       edges: [{ id: 'e1', source: 'a', target: 'b', type: 'wrong', data: { relationshipType: 'dependency' } }],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.some((e) => e.includes('invalid type'))).toBe(true);
   });
@@ -143,7 +143,7 @@ describe('fileIO', () => {
     const bad = {
       ...validFile,
       edges: [{ id: 'e1', type: 'uml', data: { relationshipType: 'dependency' } }],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.some((e) => e.includes('missing "source"'))).toBe(true);
     expect(errors.some((e) => e.includes('missing "target"'))).toBe(true);
@@ -153,13 +153,13 @@ describe('fileIO', () => {
     const bad = {
       ...validFile,
       nodes: [42, 'hello'],
-    } as unknown as CodeCanvasFile;
+    } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.some((e) => e.includes('not an object'))).toBe(true);
   });
 
   it('should validate a file with all node types', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Multi',
       nodes: [
@@ -178,7 +178,7 @@ describe('fileIO', () => {
 
 describe('migrateFile — annotationNode to textNode', () => {
   it('should migrate annotationNode to textNode', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Legacy',
       nodes: [

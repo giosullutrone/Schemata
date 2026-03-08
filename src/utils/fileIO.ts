@@ -1,10 +1,10 @@
-import type { CodeCanvasFile } from '../types/schema';
+import type { SchemataFile } from '../types/schema';
 
-export function serializeFile(file: CodeCanvasFile): string {
+export function serializeFile(file: SchemataFile): string {
   return JSON.stringify(file, null, 2);
 }
 
-export function deserializeFile(json: string): CodeCanvasFile {
+export function deserializeFile(json: string): SchemataFile {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw: any = JSON.parse(json);
   // Migrate old multi-canvas format to flat single-canvas format
@@ -19,13 +19,13 @@ export function deserializeFile(json: string): CodeCanvasFile {
       viewport: firstCanvas?.viewport,
     };
   }
-  return raw as CodeCanvasFile;
+  return raw as SchemataFile;
 }
 
 const VALID_NODE_TYPES = new Set(['classNode', 'textNode', 'groupNode']);
 const VALID_EDGE_TYPE = 'uml';
 
-export function validateFile(file: CodeCanvasFile): string[] {
+export function validateFile(file: SchemataFile): string[] {
   const errors: string[] = [];
 
   if (!file.version) {
@@ -69,7 +69,7 @@ export function validateFile(file: CodeCanvasFile): string[] {
   return errors;
 }
 
-export async function writeToHandle(handle: FileSystemFileHandle, file: CodeCanvasFile): Promise<void> {
+export async function writeToHandle(handle: FileSystemFileHandle, file: SchemataFile): Promise<void> {
   const writable = await handle.createWritable();
   try {
     await writable.write(serializeFile(file));
@@ -82,7 +82,7 @@ export async function writeToHandle(handle: FileSystemFileHandle, file: CodeCanv
 
 export interface ScannedFile {
   relativePath: string;
-  file: CodeCanvasFile;
+  file: SchemataFile;
   handle: FileSystemFileHandle;
 }
 
@@ -125,7 +125,7 @@ export async function scanFolder(
       pdfPaths.push(...sub.pdfPaths);
       warnings.push(...sub.warnings);
     } else if (entry.kind === 'file') {
-      if (entry.name.endsWith('.codecanvas.json')) {
+      if (entry.name.endsWith('.schemata.json')) {
         const fileHandle = entry as FileSystemFileHandle;
         try {
           const fileObj = await fileHandle.getFile();
@@ -161,7 +161,7 @@ export async function createFileInFolder(
   rootDirHandle: FileSystemDirectoryHandle,
   subPath: string,
   fileName: string,
-  file: CodeCanvasFile,
+  file: SchemataFile,
 ): Promise<ScannedFile | null> {
   let targetDir = rootDirHandle;
   if (subPath) {
@@ -172,13 +172,13 @@ export async function createFileInFolder(
   }
   // Prevent overwriting existing files — append numeric suffix if needed
   let finalName = fileName;
-  const baseName = fileName.replace('.codecanvas.json', '');
+  const baseName = fileName.replace('.schemata.json', '');
   let attempt = 0;
   while (attempt < 100) {
     try {
       await targetDir.getFileHandle(finalName, { create: false });
       attempt++;
-      finalName = `${baseName}-${attempt}.codecanvas.json`;
+      finalName = `${baseName}-${attempt}.schemata.json`;
     } catch {
       break; // File doesn't exist, safe to use
     }

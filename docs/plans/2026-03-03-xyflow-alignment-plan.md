@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Align CodeCanvas with standard @xyflow/react patterns — fix edge architecture, add missing handlers/components, and add dark mode.
+**Goal:** Align Schemata with standard @xyflow/react patterns — fix edge architecture, add missing handlers/components, and add dark mode.
 
 **Architecture:** Refactor edge type system from 6 identical mappings to single `uml` type with `data.relationshipType`. Add standard ReactFlow components (Background, Controls, MiniMap). Add `onEdgesChange` + `onReconnect` handlers. Add dark mode via ReactFlow's built-in `colorMode` + CSS custom properties for our components.
 
@@ -99,7 +99,7 @@ Add `ClassEdgeSchema` to imports:
 
 ```ts
 import type {
-  CodeCanvasFile,
+  SchemataFile,
   ClassNodeData,
   ClassEdgeData,
   ClassNodeSchema,
@@ -719,12 +719,12 @@ In `src/App.tsx`, in the `App` component:
 type ColorModeSetting = 'light' | 'dark' | 'system';
 
 const [colorMode, setColorMode] = useState<ColorModeSetting>(() => {
-  return (localStorage.getItem('codecanvas-color-mode') as ColorModeSetting) || 'system';
+  return (localStorage.getItem('schemata-color-mode') as ColorModeSetting) || 'system';
 });
 
 const handleColorModeChange = useCallback((mode: ColorModeSetting) => {
   setColorMode(mode);
-  localStorage.setItem('codecanvas-color-mode', mode);
+  localStorage.setItem('schemata-color-mode', mode);
 }, []);
 ```
 

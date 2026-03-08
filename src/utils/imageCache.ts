@@ -2,7 +2,7 @@ const cache = new Map<string, string>();
 const pending = new Map<string, Promise<string | null>>();
 
 function resolvePath(canvasRelativePath: string, imageSrc: string): string {
-  // Get canvas file's directory: "diagrams/my.codecanvas.json" → "diagrams"
+  // Get canvas file's directory: "diagrams/my.schemata.json" → "diagrams"
   const lastSlash = canvasRelativePath.lastIndexOf('/');
   const canvasDir = lastSlash >= 0 ? canvasRelativePath.substring(0, lastSlash) : '';
 
@@ -37,6 +37,8 @@ export async function resolveImageUrl(
   // Dedup concurrent loads for the same path
   const inflight = pending.get(resolved);
   if (inflight) return inflight;
+
+  if (!resolved) return null;
 
   const promise = (async (): Promise<string | null> => {
     try {

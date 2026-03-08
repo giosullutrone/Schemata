@@ -1,0 +1,15 @@
+{
+  "name": "schemata-marketplace",
+  "description": "Schemata UML diagram editor plugin for Claude Code",
+  "owner": {
+    "name": "Schemata"
+  },
+  "plugins": [
+    {
+      "name": "schemata",
+      "description": "Manipulate UML diagrams via the Schemata REST API",
+      "version": "1.0.0",
+      "source": "./"
+    }
+  ]
+}

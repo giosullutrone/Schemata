@@ -98,7 +98,7 @@ export interface ClassEdgeSchema {
   data: ClassEdgeData;
 }
 
-export interface CodeCanvasFile {
+export interface SchemataFile {
   version: string;
   name: string;
   nodes: CanvasNodeSchema[];

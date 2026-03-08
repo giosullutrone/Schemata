@@ -1,12 +1,13 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { CodeCanvasFile } from '../types/schema.js';
+import type { SchemataFile } from '../types/schema.js';
+import { validateFile } from '../utils/fileIO.js';
 
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg', '__pycache__', '.next', 'dist', 'build']);
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
 
 export interface FsScanResult {
-  files: Array<{ relativePath: string; file: CodeCanvasFile }>;
+  files: Array<{ relativePath: string; file: SchemataFile }>;
   imagePaths: string[];
   pdfPaths: string[];
   warnings: string[];
@@ -36,11 +37,16 @@ export async function scanFolderFs(rootPath: string, basePath = ''): Promise<FsS
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
 
-      if (entry.name.endsWith('.codecanvas.json')) {
+      if (entry.name.endsWith('.schemata.json')) {
         try {
           const content = await fs.readFile(path.join(dirPath, entry.name), 'utf-8');
-          const file = JSON.parse(content) as CodeCanvasFile;
-          result.files.push({ relativePath, file });
+          const file = JSON.parse(content) as SchemataFile;
+          const errors = validateFile(file);
+          if (errors.length > 0) {
+            result.warnings.push(`${relativePath}: ${errors[0]}`);
+          } else {
+            result.files.push({ relativePath, file });
+          }
         } catch (err) {
           result.warnings.push(`Failed to parse ${relativePath}: ${err}`);
         }

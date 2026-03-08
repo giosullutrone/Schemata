@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useCanvasStore, migrateFile } from './useCanvasStore';
-import type { CodeCanvasFile, ClassEdgeSchema } from '../types/schema';
+import type { SchemataFile, ClassEdgeSchema } from '../types/schema';
 
-const TEST_FILE = 'test.codecanvas.json';
+const TEST_FILE = 'test.schemata.json';
 
-function setup(file?: Partial<CodeCanvasFile>) {
+function setup(file?: Partial<SchemataFile>) {
   useCanvasStore.getState().reset();
-  const f: CodeCanvasFile = {
+  const f: SchemataFile = {
     version: '1.0',
     name: 'Test',
     nodes: [],
@@ -60,6 +60,26 @@ describe('addEdge', () => {
   it('should push undo entry', () => {
     useCanvasStore.getState().addEdge('class-1', 'class-2', 'association');
     expect(useCanvasStore.getState()._undoStack).toHaveLength(1);
+  });
+
+  it('should prevent duplicate edge between same source and target', () => {
+    useCanvasStore.getState().addEdge('class-1', 'class-2', 'association');
+    useCanvasStore.getState().addEdge('class-1', 'class-2', 'inheritance');
+    const edges = getFile().edges;
+    expect(edges).toHaveLength(1);
+    expect(edges[0].data.relationshipType).toBe('association');
+  });
+
+  it('should prevent duplicate edge regardless of handle', () => {
+    useCanvasStore.getState().addEdge('class-1', 'class-2', 'association', 'top', 'bottom');
+    useCanvasStore.getState().addEdge('class-1', 'class-2', 'association', 'left', 'right');
+    expect(getFile().edges).toHaveLength(1);
+  });
+
+  it('should allow edges in opposite directions', () => {
+    useCanvasStore.getState().addEdge('class-1', 'class-2', 'association');
+    useCanvasStore.getState().addEdge('class-2', 'class-1', 'dependency');
+    expect(getFile().edges).toHaveLength(2);
   });
 });
 
@@ -378,7 +398,7 @@ describe('saveViewport', () => {
 
 describe('migrateFile', () => {
   it('should add IDs to properties and methods missing them', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Test',
       nodes: [
@@ -407,7 +427,7 @@ describe('migrateFile', () => {
   });
 
   it('should not modify file when all IDs are present', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Test',
       nodes: [
@@ -540,12 +560,12 @@ describe('clearError', () => {
 // ---- removeFile ----
 
 describe('removeFile', () => {
-  const SECOND_FILE = 'second.codecanvas.json';
+  const SECOND_FILE = 'second.schemata.json';
 
   beforeEach(() => {
     useCanvasStore.getState().reset();
-    const f1: CodeCanvasFile = { version: '1.0', name: 'First', nodes: [], edges: [] };
-    const f2: CodeCanvasFile = { version: '1.0', name: 'Second', nodes: [], edges: [] };
+    const f1: SchemataFile = { version: '1.0', name: 'First', nodes: [], edges: [] };
+    const f2: SchemataFile = { version: '1.0', name: 'Second', nodes: [], edges: [] };
     useCanvasStore.setState({
       files: { [TEST_FILE]: f1, [SECOND_FILE]: f2 },
       activeFilePath: TEST_FILE,
@@ -584,7 +604,7 @@ describe('removeFile', () => {
   it('should be a no-op for non-existent file paths', async () => {
     const stateBefore = useCanvasStore.getState();
     const filesBefore = stateBefore.files;
-    await useCanvasStore.getState().removeFile('does-not-exist.codecanvas.json');
+    await useCanvasStore.getState().removeFile('does-not-exist.schemata.json');
     expect(useCanvasStore.getState().files).toBe(filesBefore);
   });
 });
@@ -595,8 +615,8 @@ describe('setActiveFile', () => {
   beforeEach(() => setup());
 
   it('should update activeFilePath', () => {
-    useCanvasStore.getState().setActiveFile('other-file.codecanvas.json');
-    expect(useCanvasStore.getState().activeFilePath).toBe('other-file.codecanvas.json');
+    useCanvasStore.getState().setActiveFile('other-file.schemata.json');
+    expect(useCanvasStore.getState().activeFilePath).toBe('other-file.schemata.json');
   });
 
   it('should clear previewImagePath', () => {

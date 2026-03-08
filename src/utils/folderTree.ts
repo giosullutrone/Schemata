@@ -1,4 +1,4 @@
-import type { CodeCanvasFile } from '../types/schema';
+import type { SchemataFile } from '../types/schema';
 
 export interface FolderTreeNode {
   kind: 'folder';
@@ -28,7 +28,7 @@ export interface PdfTreeNode {
 
 export type TreeNode = FolderTreeNode | FileTreeNode | ImageTreeNode | PdfTreeNode;
 
-export function buildFolderTree(files: Record<string, CodeCanvasFile>, imagePaths: string[] = [], pdfPaths: string[] = []): TreeNode[] {
+export function buildFolderTree(files: Record<string, SchemataFile>, imagePaths: string[] = [], pdfPaths: string[] = []): TreeNode[] {
   // Group files, images, and PDFs by their parent directory
   const folderMap = new Map<string, (FileTreeNode | ImageTreeNode | PdfTreeNode)[]>();
 

@@ -98,7 +98,7 @@ Replace the top toolbar and canvas selector dropdown with a collapsible left sid
 - `setFileHandle(handle)` — store file handle for save
 
 ### No Schema Changes
-`CodeCanvasFile` remains identical. Canvas order is implicit in Record key insertion order.
+`SchemataFile` remains identical. Canvas order is implicit in Record key insertion order.
 
 ## Sidebar ↔ ReactFlow Communication
 

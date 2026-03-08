@@ -1,10 +1,10 @@
-# CodeCanvas Implementation Plan
+# Schemata Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a visual UML class diagram tool using @xyflow/react for collaborative architecture design with Claude Code.
 
-**Architecture:** Monolithic Vite + React + TypeScript SPA. Zustand manages state (nodes, edges, canvases, undo history). The canvas state is persisted as `.codecanvas.json` files that Claude Code reads/writes. Custom React Flow nodes render UML class boxes; custom edges render 6 UML relationship types with distinct markers.
+**Architecture:** Monolithic Vite + React + TypeScript SPA. Zustand manages state (nodes, edges, canvases, undo history). The canvas state is persisted as `.schemata.json` files that Claude Code reads/writes. Custom React Flow nodes render UML class boxes; custom edges render 6 UML relationship types with distinct markers.
 
 **Tech Stack:** Vite, React 19, TypeScript, @xyflow/react, Zustand
 
@@ -28,7 +28,7 @@
 
 Run:
 ```bash
-cd /Users/giosullutrone/Documents/shared/projects/CodeCanvas
+cd /Users/giosullutrone/Documents/shared/projects/Schemata
 npm create vite@latest . -- --template react-ts
 ```
 
@@ -129,12 +129,12 @@ import type {
   ClassNodeData,
   ClassEdgeData,
   CanvasData,
-  CodeCanvasFile,
+  SchemataFile,
 } from './schema';
 
 describe('Schema types', () => {
-  it('should allow constructing a valid CodeCanvasFile', () => {
-    const file: CodeCanvasFile = {
+  it('should allow constructing a valid SchemataFile', () => {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Test Project',
       canvases: {
@@ -186,7 +186,7 @@ describe('Schema types', () => {
   });
 
   it('should allow minimal node data without optional fields', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Minimal',
       canvases: {
@@ -294,7 +294,7 @@ export interface CanvasData {
   edges: ClassEdgeSchema[];
 }
 
-export interface CodeCanvasFile {
+export interface SchemataFile {
   version: string;
   name: string;
   canvases: Record<string, CanvasData>;
@@ -310,7 +310,7 @@ Expected: PASS
 
 ```bash
 git add src/types/schema.ts src/types/schema.test.ts
-git commit -m "feat: add TypeScript schema types for CodeCanvas file format"
+git commit -m "feat: add TypeScript schema types for Schemata file format"
 ```
 
 ---
@@ -454,7 +454,7 @@ Create `src/store/useCanvasStore.ts`:
 ```ts
 import { create } from 'zustand';
 import type {
-  CodeCanvasFile,
+  SchemataFile,
   ClassNodeData,
   ClassEdgeData,
   RelationshipType,
@@ -471,7 +471,7 @@ function generateEdgeId(): string {
   return `edge-${nextEdgeId++}`;
 }
 
-function createDefaultFile(): CodeCanvasFile {
+function createDefaultFile(): SchemataFile {
   return {
     version: '1.0',
     name: 'Untitled Project',
@@ -486,14 +486,14 @@ function createDefaultFile(): CodeCanvasFile {
 }
 
 interface CanvasStore {
-  file: CodeCanvasFile;
+  file: SchemataFile;
   currentCanvasId: string;
 
   // Reset (for tests)
   reset: () => void;
 
   // File operations
-  loadFile: (file: CodeCanvasFile) => void;
+  loadFile: (file: SchemataFile) => void;
 
   // Canvas operations
   setCurrentCanvas: (canvasId: string) => void;
@@ -849,9 +849,9 @@ Create `src/utils/fileIO.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
 import { serializeFile, deserializeFile, validateFile } from './fileIO';
-import type { CodeCanvasFile } from '../types/schema';
+import type { SchemataFile } from '../types/schema';
 
-const validFile: CodeCanvasFile = {
+const validFile: SchemataFile = {
   version: '1.0',
   name: 'Test',
   canvases: {
@@ -900,13 +900,13 @@ describe('fileIO', () => {
   });
 
   it('should reject a file without version', () => {
-    const bad = { ...validFile, version: undefined } as unknown as CodeCanvasFile;
+    const bad = { ...validFile, version: undefined } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.length).toBeGreaterThan(0);
   });
 
   it('should reject a file without canvases', () => {
-    const bad = { version: '1.0', name: 'X' } as unknown as CodeCanvasFile;
+    const bad = { version: '1.0', name: 'X' } as unknown as SchemataFile;
     const errors = validateFile(bad);
     expect(errors.length).toBeGreaterThan(0);
   });
@@ -923,17 +923,17 @@ Expected: FAIL — cannot find module `./fileIO`
 Create `src/utils/fileIO.ts`:
 
 ```ts
-import type { CodeCanvasFile } from '../types/schema';
+import type { SchemataFile } from '../types/schema';
 
-export function serializeFile(file: CodeCanvasFile): string {
+export function serializeFile(file: SchemataFile): string {
   return JSON.stringify(file, null, 2);
 }
 
-export function deserializeFile(json: string): CodeCanvasFile {
-  return JSON.parse(json) as CodeCanvasFile;
+export function deserializeFile(json: string): SchemataFile {
+  return JSON.parse(json) as SchemataFile;
 }
 
-export function validateFile(file: CodeCanvasFile): string[] {
+export function validateFile(file: SchemataFile): string[] {
   const errors: string[] = [];
 
   if (!file.version) {
@@ -962,17 +962,17 @@ export function validateFile(file: CodeCanvasFile): string[] {
   return errors;
 }
 
-export async function saveToFileSystem(file: CodeCanvasFile): Promise<FileSystemFileHandle | null> {
+export async function saveToFileSystem(file: SchemataFile): Promise<FileSystemFileHandle | null> {
   if (!('showSaveFilePicker' in window)) {
     downloadAsFile(file);
     return null;
   }
   const handle = await window.showSaveFilePicker({
-    suggestedName: `${file.name}.codecanvas.json`,
+    suggestedName: `${file.name}.schemata.json`,
     types: [
       {
-        description: 'CodeCanvas files',
-        accept: { 'application/json': ['.codecanvas.json'] },
+        description: 'Schemata files',
+        accept: { 'application/json': ['.schemata.json'] },
       },
     ],
   });
@@ -982,21 +982,21 @@ export async function saveToFileSystem(file: CodeCanvasFile): Promise<FileSystem
   return handle;
 }
 
-export async function writeToHandle(handle: FileSystemFileHandle, file: CodeCanvasFile): Promise<void> {
+export async function writeToHandle(handle: FileSystemFileHandle, file: SchemataFile): Promise<void> {
   const writable = await handle.createWritable();
   await writable.write(serializeFile(file));
   await writable.close();
 }
 
-export async function loadFromFileSystem(): Promise<{ file: CodeCanvasFile; handle: FileSystemFileHandle } | null> {
+export async function loadFromFileSystem(): Promise<{ file: SchemataFile; handle: FileSystemFileHandle } | null> {
   if (!('showOpenFilePicker' in window)) {
     return null;
   }
   const [handle] = await window.showOpenFilePicker({
     types: [
       {
-        description: 'CodeCanvas files',
-        accept: { 'application/json': ['.codecanvas.json', '.json'] },
+        description: 'Schemata files',
+        accept: { 'application/json': ['.schemata.json', '.json'] },
       },
     ],
   });
@@ -1006,12 +1006,12 @@ export async function loadFromFileSystem(): Promise<{ file: CodeCanvasFile; hand
   return { file: parsed, handle };
 }
 
-function downloadAsFile(file: CodeCanvasFile): void {
+function downloadAsFile(file: SchemataFile): void {
   const blob = new Blob([serializeFile(file)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${file.name}.codecanvas.json`;
+  a.download = `${file.name}.schemata.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -3260,8 +3260,8 @@ undo: () => void;
 redo: () => void;
 
 // Add state:
-_undoStack: CodeCanvasFile[];
-_redoStack: CodeCanvasFile[];
+_undoStack: SchemataFile[];
+_redoStack: SchemataFile[];
 ```
 
 Before each mutating action, push the current `file` to `_undoStack` and clear `_redoStack`. `undo` pops from `_undoStack`, pushes current to `_redoStack`. `redo` does the reverse.
@@ -3319,7 +3319,7 @@ In `src/App.tsx`, add `onDragOver` and `onDrop` handlers to the root div. On dro
 **Step 2: Verify manually**
 
 Run: `npm run dev`
-Drag a `.codecanvas.json` file onto the canvas → should load it.
+Drag a `.schemata.json` file onto the canvas → should load it.
 
 **Step 3: Commit**
 

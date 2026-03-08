@@ -375,13 +375,13 @@ export default function Sidebar() {
           draggable
           onDragStart={(e) => handleDragStart(e, file.relativePath)}
           onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('application/codecanvas-image') || e.dataTransfer.types.includes('application/codecanvas-pdf')) {
+            if (e.dataTransfer.types.includes('application/schemata-image') || e.dataTransfer.types.includes('application/schemata-pdf')) {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'copy';
             }
           }}
           onDrop={(e) => {
-            const mediaPath = e.dataTransfer.getData('application/codecanvas-image') || e.dataTransfer.getData('application/codecanvas-pdf');
+            const mediaPath = e.dataTransfer.getData('application/schemata-image') || e.dataTransfer.getData('application/schemata-pdf');
             if (mediaPath) {
               e.preventDefault();
               handleFileClick(file.relativePath);
@@ -454,7 +454,7 @@ export default function Sidebar() {
         draggable
         onDragStart={(e) => {
           handleDragStart(e, img.relativePath);
-          e.dataTransfer.setData('application/codecanvas-image', img.relativePath);
+          e.dataTransfer.setData('application/schemata-image', img.relativePath);
           e.dataTransfer.effectAllowed = 'copyMove';
         }}
         onClick={() => setPreviewImage(img.relativePath)}
@@ -480,7 +480,7 @@ export default function Sidebar() {
         draggable
         onDragStart={(e) => {
           handleDragStart(e, pdf.relativePath);
-          e.dataTransfer.setData('application/codecanvas-pdf', pdf.relativePath);
+          e.dataTransfer.setData('application/schemata-pdf', pdf.relativePath);
           e.dataTransfer.effectAllowed = 'copyMove';
         }}
         onClick={() => setPreviewPdf(pdf.relativePath)}
@@ -517,7 +517,7 @@ export default function Sidebar() {
             &#9776;
           </button>
           <span className="sidebar-project-name" title={folderName ?? 'No folder open'}>
-            {folderName ?? 'CodeCanvas'}
+            {folderName ?? 'Schemata'}
           </span>
           <button className="sidebar-save-btn" onClick={handleSave} title="Save (Ctrl+S)">
             &#128190;

@@ -342,7 +342,7 @@ git commit -m "feat: rename addAnnotation to addTextNode, remove cascade deletio
 Add to `src/utils/fileIO.test.ts`:
 ```typescript
 it('should migrate annotationNode to textNode', () => {
-  const file: CodeCanvasFile = {
+  const file: SchemataFile = {
     version: '1.0',
     name: 'Test',
     nodes: [
@@ -1048,7 +1048,7 @@ git commit -m "fix: update remaining test references for textNode migration"
 
 **Manual testing checklist:**
 
-1. Open a folder with `.codecanvas.json` files
+1. Open a folder with `.schemata.json` files
 2. **Double-click pane** → creates text node (not class node)
 3. **Shift+double-click pane** → creates class node
 4. **N key** → creates text node at center

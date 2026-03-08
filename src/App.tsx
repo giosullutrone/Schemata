@@ -31,11 +31,13 @@ import AlignmentGuides from './components/AlignmentGuides';
 import Toast from './components/Toast';
 import LoadingBar from './components/LoadingBar';
 import ShortcutsModal from './components/ShortcutsModal';
+import CanvasSearch from './components/CanvasSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import { calculateGuides, type GuideLine, type NodeRect, type SnapResult } from './utils/alignment';
 import { EDGE_CONFIG, type UmlEdgeConfig } from './components/edges/edgeConfig';
 import { useCanvasStore } from './store/useCanvasStore';
 import { resolveImageUrl } from './utils/imageCache';
+import { minimapNodeColor } from './utils/minimap';
 import type { CanvasNodeSchema, ClassEdgeSchema, RelationshipType } from './types/schema';
 import { toPng, toSvg } from 'html-to-image';
 import type { ColorModeSetting, SnapMode } from './constants';
@@ -56,7 +58,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   const setCanvasEdges = useCanvasStore((s) => s.setCanvasEdges);
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
 
-  const { screenToFlowPosition, setViewport, getNodes, getEdges, setNodes, fitView, getZoom } = useReactFlow();
+  const { screenToFlowPosition, setViewport, getNodes, getEdges, setNodes, fitView, getZoom, zoomIn, zoomOut, setCenter } = useReactFlow();
   const zoom = useStore((s) => s.transform[2]);
 
   // Clipboard for copy/paste (module-scoped so it survives re-renders)
@@ -83,6 +85,25 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   } | null>(null);
 
   const [guides, setGuides] = useState<GuideLine[]>([]);
+  const [showSearch, setShowSearch] = useState(false);
+
+  // Focus a specific node by ID (used by canvas search)
+  const handleSearchFocusNode = useCallback(
+    (nodeId: string) => {
+      const store = useCanvasStore.getState();
+      const af = store.activeFilePath;
+      if (!af) return;
+      const node = store.files[af]?.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const rfNodes = getNodes();
+      const measured = rfNodes.find((n) => n.id === nodeId);
+      const w = measured?.measured?.width ?? 200;
+      const h = measured?.measured?.height ?? 150;
+      fitView({ nodes: [{ id: nodeId }], padding: 0.3, duration: 300, maxZoom: getZoom() });
+      setNodes((nodes) => nodes.map((n) => ({ ...n, selected: n.id === nodeId })));
+    },
+    [getNodes, fitView, getZoom, setNodes]
+  );
 
   // Nodes captured at group drag start — only these move with the group
   const groupDragContainedRef = useRef<Set<string> | null>(null);
@@ -244,6 +265,13 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
   // Keyboard shortcuts: Ctrl+A (select all), Ctrl+C/V (copy/paste), Ctrl+0 (zoom to fit)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Ctrl+F — toggle search (works even when editing)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowSearch((prev) => !prev);
+        return;
+      }
+
       const tag = (e.target as HTMLElement).tagName;
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
       if (isEditing) return;
@@ -374,10 +402,22 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         fitView({ padding: 0.2, duration: 300 });
         return;
       }
+
+      // Ctrl+= / Ctrl+- — zoom in / zoom out
+      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        zoomIn({ duration: 200 });
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        zoomOut({ duration: 200 });
+        return;
+      }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [canvas, getNodes, getEdges, setNodes, setCanvasNodes, setCanvasEdges, pushUndoSnapshot, fitView, screenToFlowPosition]);
+  }, [canvas, getNodes, getEdges, setNodes, setCanvasNodes, setCanvasEdges, pushUndoSnapshot, fitView, screenToFlowPosition, zoomIn, zoomOut]);
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -906,7 +946,7 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
       >
         <Background gap={20} />
         <Controls />
-        <MiniMap />
+        <MiniMap nodeColor={(n) => minimapNodeColor(n.type)} />
       </ReactFlow>
       {contextMenu && (
         <ContextMenu
@@ -922,6 +962,12 @@ function FlowCanvas({ colorMode, snapMode }: { colorMode: ColorModeSetting; snap
         />
       )}
       <AlignmentGuides guides={guides} />
+      {showSearch && (
+        <CanvasSearch
+          onClose={() => setShowSearch(false)}
+          onFocusNode={handleSearchFocusNode}
+        />
+      )}
     </>
   );
 }

@@ -24,16 +24,22 @@ export function initBridge(ws: ViteWs): void {
     if (error) req.reject(new Error(error));
     else req.resolve(result);
   });
+
 }
+
+const DEFAULT_TIMEOUT = 10_000;
+const LONG_TIMEOUT = 30_000;
+const LONG_TIMEOUT_ACTIONS = new Set(['exportCanvas']);
 
 export function callStore(action: string, args: unknown[] = []): Promise<unknown> {
   if (!viteWs) return Promise.reject(new Error('Bridge not initialized'));
   return new Promise((resolve, reject) => {
     const id = `req-${++idCounter}`;
+    const timeout = LONG_TIMEOUT_ACTIONS.has(action) ? LONG_TIMEOUT : DEFAULT_TIMEOUT;
     const timer = setTimeout(() => {
       pending.delete(id);
       reject(new Error('Bridge timeout — is the browser tab open?'));
-    }, 10_000);
+    }, timeout);
     pending.set(id, { resolve, reject, timer });
     viteWs!.send('canvas:request', { id, action, args });
   });

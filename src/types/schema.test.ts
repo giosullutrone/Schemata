@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type {
-  CodeCanvasFile,
+  SchemataFile,
   GroupNodeSchema,
   TextNodeSchema,
 } from './schema';
 
 describe('Schema types', () => {
-  it('should allow constructing a valid CodeCanvasFile', () => {
-    const file: CodeCanvasFile = {
+  it('should allow constructing a valid SchemataFile', () => {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Test Project',
       nodes: [
@@ -79,7 +79,7 @@ describe('Schema types', () => {
   });
 
   it('should allow minimal node data without optional fields', () => {
-    const file: CodeCanvasFile = {
+    const file: SchemataFile = {
       version: '1.0',
       name: 'Minimal',
       nodes: [

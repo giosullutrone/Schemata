@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { COLORS, COLOR_NAMES } from '../../constants.js';
 
 const schema = new Hono();
 
@@ -12,6 +13,7 @@ schema.get('/', (c) => {
       edgeStrokeStyles: ['solid', 'dashed', 'dotted', 'double'],
       borderStyles: ['solid', 'dashed', 'dotted', 'double', 'none'],
       textAligns: ['left', 'center', 'right', 'justify'],
+      colors: COLORS.map((hex, i) => ({ hex, name: COLOR_NAMES[i] })),
     },
   });
 });

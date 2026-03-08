@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  CodeCanvasFile,
+  SchemataFile,
   ClassEdgeData,
   ClassEdgeSchema,
   CanvasNodeSchema,
@@ -14,6 +14,7 @@ import {
   writeToHandle,
 } from '../utils/fileIO';
 import { clearImageCache } from '../utils/imageCache';
+import { GROUP_PADDING, GROUP_LABEL_HEIGHT } from '../constants';
 
 let nextNodeId = 1;
 let nextEdgeId = 1;
@@ -53,7 +54,7 @@ function parseIdSuffix(id: string): number {
 }
 
 /** Sync all ID counters to be above the highest existing IDs across all files */
-function syncIdCounters(files: Record<string, CodeCanvasFile>) {
+function syncIdCounters(files: Record<string, SchemataFile>) {
   let maxNode = 0, maxEdge = 0, maxTextNode = 0, maxGroup = 0, maxProp = 0, maxMethod = 0;
   for (const file of Object.values(files)) {
     for (const node of file.nodes) {
@@ -83,7 +84,7 @@ function syncIdCounters(files: Record<string, CodeCanvasFile>) {
 }
 
 /** Deduplicate nodes by ID, keeping the last occurrence */
-function deduplicateNodes(file: CodeCanvasFile): CodeCanvasFile {
+function deduplicateNodes(file: SchemataFile): SchemataFile {
   const seen = new Set<string>();
   const unique: typeof file.nodes = [];
   // Iterate in reverse so we keep the last occurrence, then reverse back
@@ -101,7 +102,7 @@ function deduplicateNodes(file: CodeCanvasFile): CodeCanvasFile {
 
 interface UndoEntry {
   filePath: string;
-  snapshot: CodeCanvasFile;
+  snapshot: SchemataFile;
 }
 
 const MAX_UNDO_STACK = 100;
@@ -124,7 +125,7 @@ function pushUndo(get: () => CanvasStore, set: (partial: Partial<CanvasStore>) =
 function updateActiveFile(
   get: () => CanvasStore,
   set: (partial: Partial<CanvasStore>) => void,
-  updater: (file: CodeCanvasFile) => CodeCanvasFile,
+  updater: (file: SchemataFile) => SchemataFile,
 ) {
   const { activeFilePath, files } = get();
   if (!activeFilePath) return;
@@ -135,7 +136,7 @@ function updateActiveFile(
 }
 
 /** Migrate older files: ensure all properties/methods have stable IDs, annotationNode → textNode */
-export function migrateFile(file: CodeCanvasFile): CodeCanvasFile {
+export function migrateFile(file: SchemataFile): SchemataFile {
   let changed = false;
 
   // Check for classNode property/method ID migration
@@ -200,7 +201,7 @@ interface CanvasStore {
   folderName: string | null;
 
   // Multi-file state
-  files: Record<string, CodeCanvasFile>;
+  files: Record<string, SchemataFile>;
   fileHandles: Record<string, FileSystemFileHandle>;
 
   // Active location
@@ -211,7 +212,7 @@ interface CanvasStore {
   _redoStack: UndoEntry[];
 
   // Save tracking
-  lastSavedFiles: Record<string, CodeCanvasFile>;
+  lastSavedFiles: Record<string, SchemataFile>;
   _dirtyFiles: Record<string, boolean>;
 
   // Image files discovered in folder
@@ -245,7 +246,7 @@ interface CanvasStore {
   saveAllFiles: () => Promise<void>;
   removeFile: (filePath: string) => Promise<void>;
   moveFileToFolder: (sourcePath: string, targetFolderPath: string) => Promise<void>;
-  loadFolder: (name: string, files: Record<string, CodeCanvasFile>, imagePaths: string[], pdfPaths: string[]) => void;
+  loadFolder: (name: string, files: Record<string, SchemataFile>, imagePaths: string[], pdfPaths: string[]) => void;
   setPreviewImage: (path: string | null) => void;
   setPreviewPdf: (path: string | null) => void;
 
@@ -313,7 +314,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   editingNodeId: null,
   sidebarOpen: (() => {
     try {
-      const stored = localStorage.getItem('codecanvas-sidebar-open');
+      const stored = localStorage.getItem('schemata-sidebar-open');
       return stored !== null ? stored === 'true' : true;
     } catch {
       return true;
@@ -398,9 +399,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ _loading: true, _error: null });
     try {
       const scanResult = await scanFolder(dirHandle);
-      const files: Record<string, CodeCanvasFile> = {};
+      const files: Record<string, SchemataFile> = {};
       const handles: Record<string, FileSystemFileHandle> = {};
-      const lastSaved: Record<string, CodeCanvasFile> = {};
+      const lastSaved: Record<string, SchemataFile> = {};
       for (const s of scanResult.files) {
         const migrated = deduplicateNodes(migrateFile(s.file));
         files[s.relativePath] = migrated;
@@ -459,9 +460,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ _loading: true, _error: null });
     try {
       const scanResult = await scanFolder(folderHandle);
-      const nextFiles: Record<string, CodeCanvasFile> = {};
+      const nextFiles: Record<string, SchemataFile> = {};
       const nextHandles: Record<string, FileSystemFileHandle> = {};
-      const nextSaved: Record<string, CodeCanvasFile> = {};
+      const nextSaved: Record<string, SchemataFile> = {};
       const nextDirty: Record<string, boolean> = {};
       for (const s of scanResult.files) {
         if (files[s.relativePath] && _dirtyFiles[s.relativePath]) {
@@ -508,14 +509,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   createFile: async (folderRelativePath, displayName) => {
     const { folderHandle, files, fileHandles, lastSavedFiles } = get();
     if (!folderHandle) return;
-    const newFile: CodeCanvasFile = {
+    const newFile: SchemataFile = {
       version: '1.0',
       name: displayName,
       nodes: [],
       edges: [],
     };
     const sanitized = displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const fileName = `${sanitized || 'untitled'}.codecanvas.json`;
+    const fileName = `${sanitized || 'untitled'}.schemata.json`;
     try {
       const result = await createFileInFolder(folderHandle, folderRelativePath, fileName, newFile);
       if (!result) return;
@@ -535,9 +536,20 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (!activeFilePath) return;
     const file = files[activeFilePath];
     const handle = fileHandles[activeFilePath];
-    if (!file || !handle) return;
+    if (!file) return;
+
     try {
-      await writeToHandle(handle, file);
+      if (handle) {
+        // Browser File System Access API path
+        await writeToHandle(handle, file);
+      } else {
+        // Server-side save fallback (folder opened via API)
+        const res = await fetch('/api/files/save', { method: 'POST' });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as { error?: string }).error || `Save failed (${res.status})`);
+        }
+      }
       const { _dirtyFiles, lastSavedFiles } = get();
       const nextDirty = { ..._dirtyFiles };
       delete nextDirty[activeFilePath];
@@ -558,9 +570,38 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   saveAllFiles: async () => {
     const dirtyPaths = Object.keys(get()._dirtyFiles);
     if (dirtyPaths.length === 0) return;
+
+    // Check if any file has a handle — if none do, use server-side save
+    const { fileHandles } = get();
+    const hasAnyHandle = dirtyPaths.some(fp => fileHandles[fp]);
+
+    if (!hasAnyHandle) {
+      // Server-side save-all fallback (folder opened via API)
+      try {
+        const res = await fetch('/api/files/save-all', { method: 'POST' });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as { error?: string }).error || `Save failed (${res.status})`);
+        }
+        const nextDirty = { ...get()._dirtyFiles };
+        const nextSaved = { ...get().lastSavedFiles };
+        for (const fp of dirtyPaths) {
+          const file = get().files[fp];
+          if (file) {
+            delete nextDirty[fp];
+            nextSaved[fp] = JSON.parse(JSON.stringify(file));
+          }
+        }
+        set({ _dirtyFiles: nextDirty, lastSavedFiles: nextSaved, _info: `Saved ${dirtyPaths.length} file${dirtyPaths.length === 1 ? '' : 's'}` });
+      } catch (err) {
+        set({ _error: `Save failed: ${(err as Error).message}` });
+      }
+      return;
+    }
+
     const errors: string[] = [];
     const savedPaths: string[] = [];
-    const savedSnapshots: Record<string, CodeCanvasFile> = {};
+    const savedSnapshots: Record<string, SchemataFile> = {};
     for (const fp of dirtyPaths) {
       // Snapshot right before writing to avoid race condition with in-progress edits
       const { files, fileHandles } = get();
@@ -596,6 +637,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   removeFile: async (filePath) => {
     const { folderHandle, files, fileHandles, lastSavedFiles, _dirtyFiles, activeFilePath } = get();
     if (!files[filePath]) return;
+    clearImageCache();
 
     // Delete from disk if we have the handles
     if (folderHandle && fileHandles[filePath]) {
@@ -704,7 +746,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           _redoStack: state._redoStack.map((e) => e.filePath === sourcePath ? { ...e, filePath: newPath } : e),
         });
       } else {
-        // Image/PDF: copy raw bytes
+        // Image/PDF: copy raw bytes — clear cache so moved images are re-resolved
+        clearImageCache();
         const srcFileHandle = await srcDir.getFileHandle(fileName);
         const srcFile = await srcFileHandle.getFile();
         const content = await srcFile.arrayBuffer();
@@ -808,8 +851,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (rects.length === 0) return;
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => {
-      const padding = 20;
-      const labelHeight = 24;
       const minX = Math.min(...rects.map((r) => r.x));
       const minY = Math.min(...rects.map((r) => r.y));
       const maxX = Math.max(...rects.map((r) => r.x + r.w));
@@ -817,11 +858,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       const groupNode = {
         id: generateGroupId(),
         type: 'groupNode' as const,
-        position: { x: minX - padding, y: minY - padding - labelHeight },
+        position: { x: minX - GROUP_PADDING, y: minY - GROUP_PADDING - GROUP_LABEL_HEIGHT },
         data: { label: 'Group' },
         style: {
-          width: maxX - minX + padding * 2,
-          height: maxY - minY + padding * 2 + labelHeight,
+          width: maxX - minX + GROUP_PADDING * 2,
+          height: maxY - minY + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
         },
       };
       return { ...file, nodes: [groupNode, ...file.nodes] };
@@ -953,6 +994,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   addEdge: (source, target, type, sourceHandle, targetHandle) => {
+    const { activeFilePath, files } = get();
+    if (activeFilePath) {
+      const file = files[activeFilePath];
+      if (file?.edges.some((e) => e.source === source && e.target === target)) return;
+    }
     pushUndo(get, set);
     updateActiveFile(get, set, (file) => {
       const newEdge: ClassEdgeSchema = {
@@ -1028,7 +1074,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
 
   setSidebarOpen: (open) => {
-    try { localStorage.setItem('codecanvas-sidebar-open', String(open)); } catch { /* storage unavailable */ }
+    try { localStorage.setItem('schemata-sidebar-open', String(open)); } catch { /* storage unavailable */ }
     set({ sidebarOpen: open });
   },
 

@@ -1,0 +1,10 @@
+{
+  "name": "schemata",
+  "description": "Claude Code plugin for manipulating UML diagrams via the Schemata REST API",
+  "version": "1.0.0",
+  "author": {
+    "name": "Schemata"
+  },
+  "license": "MIT",
+  "keywords": ["uml", "diagrams", "canvas", "code-visualization"]
+}

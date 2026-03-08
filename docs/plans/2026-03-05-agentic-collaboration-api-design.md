@@ -2,7 +2,7 @@
 
 ## Goal
 
-Expose CodeCanvas as a tool that external LLM agents can use via REST API, enabling human-agent collaboration for code design and document exploration on a visual canvas.
+Expose Schemata as a tool that external LLM agents can use via REST API, enabling human-agent collaboration for code design and document exploration on a visual canvas.
 
 ## Use Cases
 
@@ -72,7 +72,7 @@ src/
 
 | Method | Endpoint | Store Action | Description |
 |--------|----------|-------------|-------------|
-| `POST` | `/api/folder/open` | new action (fs-based) | Open folder by absolute path. Scans for `.codecanvas.json`, images, PDFs. |
+| `POST` | `/api/folder/open` | new action (fs-based) | Open folder by absolute path. Scans for `.schemata.json`, images, PDFs. |
 | `GET` | `/api/folder` | read store state | Current folder info (name, file count) |
 
 ### Files

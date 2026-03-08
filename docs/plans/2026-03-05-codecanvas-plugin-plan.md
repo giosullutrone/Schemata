@@ -1,8 +1,8 @@
-# CodeCanvas Claude Code Plugin — Implementation Plan
+# Schemata Claude Code Plugin — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Create a standalone Claude Code plugin with a single `canvas-api` skill that teaches Claude how to manipulate UML diagrams via the CodeCanvas REST API (31 endpoints).
+**Goal:** Create a standalone Claude Code plugin with a single `canvas-api` skill that teaches Claude how to manipulate UML diagrams via the Schemata REST API (31 endpoints).
 
 **Architecture:** A minimal plugin directory with `plugin.json` manifest and one `SKILL.md` file. The skill provides an inline API reference, workflow guidance, and 8 curl-based example workflows. Claude uses the Bash tool to issue curl commands — no MCP server or extra infrastructure.
 
@@ -13,25 +13,25 @@
 ### Task 1: Create Plugin Manifest
 
 **Files:**
-- Create: `codecanvas-plugin/.claude-plugin/plugin.json`
+- Create: `schemata-plugin/.claude-plugin/plugin.json`
 
 **Step 1: Create the directory structure**
 
 ```bash
-mkdir -p codecanvas-plugin/.claude-plugin
+mkdir -p schemata-plugin/.claude-plugin
 ```
 
 **Step 2: Write plugin.json**
 
-Create `codecanvas-plugin/.claude-plugin/plugin.json`:
+Create `schemata-plugin/.claude-plugin/plugin.json`:
 
 ```json
 {
-  "name": "codecanvas",
-  "description": "Claude Code plugin for manipulating UML diagrams via the CodeCanvas REST API",
+  "name": "schemata",
+  "description": "Claude Code plugin for manipulating UML diagrams via the Schemata REST API",
   "version": "1.0.0",
   "author": {
-    "name": "CodeCanvas"
+    "name": "Schemata"
   },
   "license": "MIT",
   "keywords": ["uml", "diagrams", "canvas", "code-visualization"]
@@ -41,7 +41,7 @@ Create `codecanvas-plugin/.claude-plugin/plugin.json`:
 **Step 3: Commit**
 
 ```bash
-git add codecanvas-plugin/.claude-plugin/plugin.json
+git add schemata-plugin/.claude-plugin/plugin.json
 git commit -m "feat(plugin): add plugin manifest"
 ```
 
@@ -50,17 +50,17 @@ git commit -m "feat(plugin): add plugin manifest"
 ### Task 2: Create the canvas-api Skill
 
 **Files:**
-- Create: `codecanvas-plugin/skills/canvas-api/SKILL.md`
+- Create: `schemata-plugin/skills/canvas-api/SKILL.md`
 
 **Step 1: Create skill directory**
 
 ```bash
-mkdir -p codecanvas-plugin/skills/canvas-api
+mkdir -p schemata-plugin/skills/canvas-api
 ```
 
 **Step 2: Write SKILL.md**
 
-Create `codecanvas-plugin/skills/canvas-api/SKILL.md` with the following exact content:
+Create `schemata-plugin/skills/canvas-api/SKILL.md` with the following exact content:
 
 ````markdown
 ---
@@ -70,14 +70,14 @@ description: >
   "add a class node", "connect two classes", "add an inheritance relationship",
   "lay out the diagram", "search the canvas", "add a text note",
   "create a UML diagram", "modify the canvas", "save the diagram",
-  "open a project folder", "undo a change", or mentions CodeCanvas API operations.
-  Activates for any request involving visual diagram manipulation on the CodeCanvas.
+  "open a project folder", "undo a change", or mentions Schemata API operations.
+  Activates for any request involving visual diagram manipulation on the Schemata.
 version: 1.0.0
 ---
 
-# CodeCanvas API Skill
+# Schemata API Skill
 
-You have access to the CodeCanvas REST API running as Vite dev middleware. Use `curl` via the Bash tool to read and manipulate the UML diagram canvas.
+You have access to the Schemata REST API running as Vite dev middleware. Use `curl` via the Bash tool to read and manipulate the UML diagram canvas.
 
 ## Prerequisites
 
@@ -192,7 +192,7 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 |--------|------|------|-------------|
 | GET | /api/files | — | List all open files |
 | GET | /api/files/active | — | Get active file |
-| PUT | /api/files/active | `{ "path": "models/auth.codecanvas.json" }` | Switch active file |
+| PUT | /api/files/active | `{ "path": "models/auth.schemata.json" }` | Switch active file |
 | POST | /api/files | `{ "path": "", "name": "NewDiagram" }` | Create new file |
 | POST | /api/files/save | — | Save active file |
 | POST | /api/files/save-all | — | Save all files |
@@ -335,7 +335,7 @@ curl -s -X POST http://localhost:5173/api/files \
 # Switch active file
 curl -s -X PUT http://localhost:5173/api/files/active \
   -H 'Content-Type: application/json' \
-  -d '{"path":"authentication.codecanvas.json"}'
+  -d '{"path":"authentication.schemata.json"}'
 # Save
 curl -s -X POST http://localhost:5173/api/files/save
 ```
@@ -377,7 +377,7 @@ curl -s -X POST http://localhost:5173/api/canvas/redo
 **Step 3: Verify the file**
 
 ```bash
-head -5 codecanvas-plugin/skills/canvas-api/SKILL.md
+head -5 schemata-plugin/skills/canvas-api/SKILL.md
 ```
 
 Expected output:
@@ -392,7 +392,7 @@ description: >
 **Step 4: Commit**
 
 ```bash
-git add codecanvas-plugin/skills/canvas-api/SKILL.md
+git add schemata-plugin/skills/canvas-api/SKILL.md
 git commit -m "feat(plugin): add canvas-api skill with full API reference"
 ```
 
@@ -403,19 +403,19 @@ git commit -m "feat(plugin): add canvas-api skill with full API reference"
 **Step 1: Verify directory layout**
 
 ```bash
-find codecanvas-plugin -type f | sort
+find schemata-plugin -type f | sort
 ```
 
 Expected output:
 ```
-codecanvas-plugin/.claude-plugin/plugin.json
-codecanvas-plugin/skills/canvas-api/SKILL.md
+schemata-plugin/.claude-plugin/plugin.json
+schemata-plugin/skills/canvas-api/SKILL.md
 ```
 
 **Step 2: Verify plugin.json is valid JSON**
 
 ```bash
-python3 -c "import json; json.load(open('codecanvas-plugin/.claude-plugin/plugin.json')); print('Valid JSON')"
+python3 -c "import json; json.load(open('schemata-plugin/.claude-plugin/plugin.json')); print('Valid JSON')"
 ```
 
 Expected: `Valid JSON`
@@ -423,7 +423,7 @@ Expected: `Valid JSON`
 **Step 3: Verify SKILL.md frontmatter**
 
 ```bash
-head -12 codecanvas-plugin/skills/canvas-api/SKILL.md
+head -12 schemata-plugin/skills/canvas-api/SKILL.md
 ```
 
 Expected: YAML frontmatter with `name: canvas-api`, `description:`, and `version: 1.0.0` between `---` delimiters.
@@ -438,6 +438,6 @@ Only commit if changes were made during verification. Otherwise, nothing to do.
 
 | Task | Description | Files |
 |------|-------------|-------|
-| 1 | Plugin manifest | `codecanvas-plugin/.claude-plugin/plugin.json` |
-| 2 | Canvas API skill | `codecanvas-plugin/skills/canvas-api/SKILL.md` |
+| 1 | Plugin manifest | `schemata-plugin/.claude-plugin/plugin.json` |
+| 2 | Canvas API skill | `schemata-plugin/skills/canvas-api/SKILL.md` |
 | 3 | Verification | No new files |

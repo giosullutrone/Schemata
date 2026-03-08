@@ -1,4 +1,4 @@
-# CodeCanvas Audit Findings — 2026-03-04
+# Schemata Audit Findings — 2026-03-04
 
 ## Bugs / Correctness Issues
 

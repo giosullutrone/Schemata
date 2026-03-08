@@ -1,12 +1,12 @@
-# CodeCanvas Design
+# Schemata Design
 
 A visual code architecture tool built with @xyflow/react for collaborative class diagram design between developers and Claude Code.
 
 ## Overview
 
-CodeCanvas is a monolithic SPA (Vite + React + TypeScript) that renders UML-style class diagrams on an interactive canvas. Nodes represent classes with properties and methods. Edges represent UML relationships. The architecture is persisted as a `.codecanvas.json` file that Claude Code can read and write, enabling fully collaborative design — either side can add, modify, or remove elements.
+Schemata is a monolithic SPA (Vite + React + TypeScript) that renders UML-style class diagrams on an interactive canvas. Nodes represent classes with properties and methods. Edges represent UML relationships. The architecture is persisted as a `.schemata.json` file that Claude Code can read and write, enabling fully collaborative design — either side can add, modify, or remove elements.
 
-## File Format (`.codecanvas.json`)
+## File Format (`.schemata.json`)
 
 ```json
 {

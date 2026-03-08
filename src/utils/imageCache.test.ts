@@ -56,7 +56,7 @@ describe('resolveImageUrl', () => {
     const handle = createMockDirectoryHandle({
       diagrams: { 'photo.png': 'file' },
     });
-    const url = await resolveImageUrl(handle, 'diagrams/my.codecanvas.json', 'photo.png');
+    const url = await resolveImageUrl(handle, 'diagrams/my.schemata.json', 'photo.png');
     expect(url).toBe('blob:mock-1');
   });
 
@@ -64,7 +64,7 @@ describe('resolveImageUrl', () => {
     const handle = createMockDirectoryHandle({
       diagrams: { images: { 'photo.png': 'file' } },
     });
-    const url = await resolveImageUrl(handle, 'diagrams/my.codecanvas.json', 'images/photo.png');
+    const url = await resolveImageUrl(handle, 'diagrams/my.schemata.json', 'images/photo.png');
     expect(url).toBe('blob:mock-1');
   });
 

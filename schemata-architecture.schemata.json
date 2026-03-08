@@ -1,0 +1,2758 @@
+{
+  "version": "1.0",
+  "name": "Schemata Architecture",
+  "nodes": [
+    {
+      "id": "group-5",
+      "type": "groupNode",
+      "position": {
+        "x": 60,
+        "y": 3836
+      },
+      "data": {
+        "label": "Utilities",
+        "color": "#fff9c4"
+      },
+      "style": {
+        "width": 2339,
+        "height": 328
+      },
+      "measured": {
+        "width": 2339,
+        "height": 328
+      }
+    },
+    {
+      "id": "group-4",
+      "type": "groupNode",
+      "position": {
+        "x": 1310,
+        "y": 2286
+      },
+      "data": {
+        "label": "Server & API Routes",
+        "color": "#f3e5f5"
+      },
+      "style": {
+        "width": 1245,
+        "height": 956
+      },
+      "measured": {
+        "width": 1245,
+        "height": 956
+      }
+    },
+    {
+      "id": "group-3",
+      "type": "groupNode",
+      "position": {
+        "x": 60,
+        "y": 2286
+      },
+      "data": {
+        "label": "UI Components",
+        "color": "#e0f7fa"
+      },
+      "style": {
+        "width": 1045,
+        "height": 1154
+      },
+      "measured": {
+        "width": 1045,
+        "height": 1154
+      }
+    },
+    {
+      "id": "group-2",
+      "type": "groupNode",
+      "position": {
+        "x": 310,
+        "y": 1216
+      },
+      "data": {
+        "label": "Core State",
+        "color": "#e8f5e9"
+      },
+      "style": {
+        "width": 1056,
+        "height": 670
+      },
+      "measured": {
+        "width": 1056,
+        "height": 670
+      }
+    },
+    {
+      "id": "group-1",
+      "type": "groupNode",
+      "position": {
+        "x": 80,
+        "y": 56
+      },
+      "data": {
+        "label": "Data Model",
+        "color": "#e3f2fd"
+      },
+      "style": {
+        "width": 1540,
+        "height": 844
+      },
+      "measured": {
+        "width": 1540,
+        "height": 844
+      }
+    },
+    {
+      "id": "class-1",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "data": {
+        "name": "ClassProperty",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "id",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "name",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "type",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "visibility",
+            "type": "Visibility",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 201,
+        "height": 182
+      }
+    },
+    {
+      "id": "class-2",
+      "type": "classNode",
+      "position": {
+        "x": 350,
+        "y": 100
+      },
+      "data": {
+        "name": "MethodParameter",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "name",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "type",
+            "type": "string",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 153,
+        "height": 146
+      }
+    },
+    {
+      "id": "class-3",
+      "type": "classNode",
+      "position": {
+        "x": 560,
+        "y": 100
+      },
+      "data": {
+        "name": "ClassMethod",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "id",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "name",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "parameters",
+            "type": "MethodParameter[]",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "returnType",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "visibility",
+            "type": "Visibility",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 252,
+        "height": 200
+      }
+    },
+    {
+      "id": "class-4",
+      "type": "classNode",
+      "position": {
+        "x": 870,
+        "y": 100
+      },
+      "data": {
+        "name": "ClassNodeData",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "name",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "stereotype",
+            "type": "Stereotype?",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "color",
+            "type": "string?",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "properties",
+            "type": "ClassProperty[]",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "methods",
+            "type": "ClassMethod[]",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 238,
+        "height": 200
+      }
+    },
+    {
+      "id": "class-5",
+      "type": "classNode",
+      "position": {
+        "x": 1170,
+        "y": 100
+      },
+      "data": {
+        "name": "TextNodeData",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "text",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "color",
+            "type": "string?",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "borderStyle",
+            "type": "BorderStyle?",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "textAlign",
+            "type": "TextAlign?",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "opacity",
+            "type": "number?",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 223,
+        "height": 200
+      }
+    },
+    {
+      "id": "class-6",
+      "type": "classNode",
+      "position": {
+        "x": 1450,
+        "y": 100
+      },
+      "data": {
+        "name": "GroupNodeData",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "label",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "color",
+            "type": "string?",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 150,
+        "height": 146
+      }
+    },
+    {
+      "id": "class-7",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 380
+      },
+      "data": {
+        "name": "ClassNodeSchema",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "id",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "type",
+            "type": "\"classNode\"",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "position",
+            "type": "{x, y}",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "data",
+            "type": "ClassNodeData",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 180,
+        "height": 182
+      }
+    },
+    {
+      "id": "class-8",
+      "type": "classNode",
+      "position": {
+        "x": 340,
+        "y": 380
+      },
+      "data": {
+        "name": "TextNodeSchema",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "id",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "type",
+            "type": "\"textNode\"",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "position",
+            "type": "{x, y}",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "data",
+            "type": "TextNodeData",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 173,
+        "height": 182
+      }
+    },
+    {
+      "id": "class-9",
+      "type": "classNode",
+      "position": {
+        "x": 570,
+        "y": 380
+      },
+      "data": {
+        "name": "GroupNodeSchema",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "id",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "type",
+            "type": "\"groupNode\"",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "position",
+            "type": "{x, y}",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "data",
+            "type": "GroupNodeData",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "style",
+            "type": "{width, height}?",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 209,
+        "height": 200
+      }
+    },
+    {
+      "id": "class-10",
+      "type": "classNode",
+      "position": {
+        "x": 840,
+        "y": 380
+      },
+      "data": {
+        "name": "ClassEdgeData",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "relationshipType",
+            "type": "RelationshipType",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "label",
+            "type": "string?",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "color",
+            "type": "string?",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "strokeStyle",
+            "type": "StrokeStyle?",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "labelWidth",
+            "type": "number?",
+            "visibility": "public"
+          },
+          {
+            "id": "p6",
+            "name": "labelHeight",
+            "type": "number?",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 288,
+        "height": 218
+      }
+    },
+    {
+      "id": "class-11",
+      "type": "classNode",
+      "position": {
+        "x": 1190,
+        "y": 380
+      },
+      "data": {
+        "name": "ClassEdgeSchema",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "id",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "source",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "target",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "sourceHandle",
+            "type": "string?",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "targetHandle",
+            "type": "string?",
+            "visibility": "public"
+          },
+          {
+            "id": "p6",
+            "name": "type",
+            "type": "\"uml\"",
+            "visibility": "public"
+          },
+          {
+            "id": "p7",
+            "name": "data",
+            "type": "ClassEdgeData",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#e3f2fd"
+      },
+      "measured": {
+        "width": 194,
+        "height": 236
+      }
+    },
+    {
+      "id": "class-12",
+      "type": "classNode",
+      "position": {
+        "x": 600,
+        "y": 680
+      },
+      "data": {
+        "name": "SchemataFile",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "version",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "name",
+            "type": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "nodes",
+            "type": "CanvasNodeSchema[]",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "edges",
+            "type": "ClassEdgeSchema[]",
+            "visibility": "public"
+          },
+          {
+            "id": "p5",
+            "name": "viewport",
+            "type": "{x, y, zoom}?",
+            "visibility": "public"
+          }
+        ],
+        "methods": [],
+        "stereotype": "interface",
+        "color": "#fff3e0"
+      },
+      "measured": {
+        "width": 223,
+        "height": 200
+      }
+    },
+    {
+      "id": "class-13",
+      "type": "classNode",
+      "position": {
+        "x": 350,
+        "y": 1280
+      },
+      "data": {
+        "name": "CanvasStore",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "folderName",
+            "type": "string | null",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "files",
+            "type": "Record<string, SchemataFile>",
+            "visibility": "private"
+          },
+          {
+            "id": "p3",
+            "name": "activeFilePath",
+            "type": "string | null",
+            "visibility": "private"
+          },
+          {
+            "id": "p4",
+            "name": "_undoStack",
+            "type": "UndoEntry[]",
+            "visibility": "private"
+          },
+          {
+            "id": "p5",
+            "name": "_redoStack",
+            "type": "UndoEntry[]",
+            "visibility": "private"
+          },
+          {
+            "id": "p6",
+            "name": "_dirtyFiles",
+            "type": "Record<string, boolean>",
+            "visibility": "private"
+          },
+          {
+            "id": "p7",
+            "name": "imagePaths",
+            "type": "string[]",
+            "visibility": "private"
+          },
+          {
+            "id": "p8",
+            "name": "pdfPaths",
+            "type": "string[]",
+            "visibility": "private"
+          },
+          {
+            "id": "p9",
+            "name": "sidebarOpen",
+            "type": "boolean",
+            "visibility": "private"
+          },
+          {
+            "id": "p10",
+            "name": "editingNodeId",
+            "type": "string | null",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "addClassNode",
+            "parameters": [
+              {
+                "name": "x",
+                "type": "number"
+              },
+              {
+                "name": "y",
+                "type": "number"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "addTextNode",
+            "parameters": [
+              {
+                "name": "x",
+                "type": "number"
+              },
+              {
+                "name": "y",
+                "type": "number"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "removeNode",
+            "parameters": [
+              {
+                "name": "id",
+                "type": "string"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m4",
+            "name": "updateNodeData",
+            "parameters": [
+              {
+                "name": "id",
+                "type": "string"
+              },
+              {
+                "name": "data",
+                "type": "object"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m5",
+            "name": "addEdge",
+            "parameters": [
+              {
+                "name": "source",
+                "type": "string"
+              },
+              {
+                "name": "target",
+                "type": "string"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m6",
+            "name": "removeEdge",
+            "parameters": [
+              {
+                "name": "id",
+                "type": "string"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m7",
+            "name": "undo",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m8",
+            "name": "redo",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m9",
+            "name": "saveActiveFile",
+            "parameters": [],
+            "returnType": "Promise<void>",
+            "visibility": "public"
+          },
+          {
+            "id": "m10",
+            "name": "openFolder",
+            "parameters": [],
+            "returnType": "Promise<void>",
+            "visibility": "public"
+          },
+          {
+            "id": "m11",
+            "name": "loadFolder",
+            "parameters": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "files",
+                "type": "object"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m12",
+            "name": "search",
+            "parameters": [
+              {
+                "name": "query",
+                "type": "string"
+              }
+            ],
+            "returnType": "object",
+            "visibility": "public"
+          },
+          {
+            "id": "m13",
+            "name": "getStats",
+            "parameters": [],
+            "returnType": "object",
+            "visibility": "public"
+          },
+          {
+            "id": "m14",
+            "name": "exportCanvas",
+            "parameters": [
+              {
+                "name": "format",
+                "type": "string"
+              }
+            ],
+            "returnType": "object",
+            "visibility": "public"
+          },
+          {
+            "id": "m15",
+            "name": "alignNodes",
+            "parameters": [
+              {
+                "name": "rects",
+                "type": "NodeRect[]"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m16",
+            "name": "groupSelectedNodes",
+            "parameters": [
+              {
+                "name": "rects",
+                "type": "NodeRect[]"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          }
+        ],
+        "color": "#e8f5e9"
+      },
+      "measured": {
+        "width": 375,
+        "height": 566
+      }
+    },
+    {
+      "id": "class-14",
+      "type": "classNode",
+      "position": {
+        "x": 850,
+        "y": 1280
+      },
+      "data": {
+        "name": "Bridge",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "pending",
+            "type": "Map<string, PendingRequest>",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "viteWs",
+            "type": "ViteWs | null",
+            "visibility": "private"
+          },
+          {
+            "id": "p3",
+            "name": "idCounter",
+            "type": "number",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "initBridge",
+            "parameters": [
+              {
+                "name": "ws",
+                "type": "ViteWs"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "callStore",
+            "parameters": [
+              {
+                "name": "action",
+                "type": "string"
+              },
+              {
+                "name": "args",
+                "type": "unknown[]"
+              }
+            ],
+            "returnType": "Promise<unknown>",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "resetBridge",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          }
+        ],
+        "color": "#fce4ec"
+      },
+      "measured": {
+        "width": 476,
+        "height": 206
+      }
+    },
+    {
+      "id": "class-15",
+      "type": "classNode",
+      "position": {
+        "x": 1350,
+        "y": 2350
+      },
+      "data": {
+        "name": "VitePlugin",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "name",
+            "type": "\"canvas-api\"",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "configureServer",
+            "parameters": [
+              {
+                "name": "server",
+                "type": "ViteDevServer"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "readBody",
+            "parameters": [
+              {
+                "name": "req",
+                "type": "IncomingMessage"
+              }
+            ],
+            "returnType": "Promise<string>",
+            "visibility": "private"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 382,
+        "height": 152
+      }
+    },
+    {
+      "id": "class-16",
+      "type": "classNode",
+      "position": {
+        "x": 1800,
+        "y": 2350
+      },
+      "data": {
+        "name": "HonoApp",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "basePath",
+            "type": "\"/api\"",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "GET /health",
+            "parameters": [],
+            "returnType": "{ status }",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "route /canvas",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "route /nodes",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m4",
+            "name": "route /edges",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m5",
+            "name": "route /files",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m6",
+            "name": "route /search",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m7",
+            "name": "route /layout",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m8",
+            "name": "route /folder",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m9",
+            "name": "route /settings",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m10",
+            "name": "route /stats",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          },
+          {
+            "id": "m11",
+            "name": "route /export",
+            "parameters": [],
+            "returnType": "Hono",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 223,
+        "height": 314
+      }
+    },
+    {
+      "id": "class-17",
+      "type": "classNode",
+      "position": {
+        "x": 2090,
+        "y": 2350
+      },
+      "data": {
+        "name": "FsScanner",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "EXCLUDED_DIRS",
+            "type": "Set<string>",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "IMAGE_EXTS",
+            "type": "Set<string>",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "scanFolderFs",
+            "parameters": [
+              {
+                "name": "rootPath",
+                "type": "string"
+              }
+            ],
+            "returnType": "Promise<FsScanResult>",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 425,
+        "height": 152
+      }
+    },
+    {
+      "id": "class-18",
+      "type": "classNode",
+      "position": {
+        "x": 1350,
+        "y": 2750
+      },
+      "data": {
+        "name": "NodesRoute",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "GET /",
+            "parameters": [],
+            "returnType": "nodes[]",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "POST /",
+            "parameters": [],
+            "returnType": "node",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "POST /batch",
+            "parameters": [],
+            "returnType": "results[]",
+            "visibility": "public"
+          },
+          {
+            "id": "m4",
+            "name": "POST /duplicate",
+            "parameters": [],
+            "returnType": "nodes[]",
+            "visibility": "public"
+          },
+          {
+            "id": "m5",
+            "name": "PATCH /:id",
+            "parameters": [],
+            "returnType": "node",
+            "visibility": "public"
+          },
+          {
+            "id": "m6",
+            "name": "DELETE /:id",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m7",
+            "name": "PATCH /groups/:id/fit",
+            "parameters": [],
+            "returnType": "group",
+            "visibility": "public"
+          },
+          {
+            "id": "m8",
+            "name": "GET /:id/distance/:otherId",
+            "parameters": [],
+            "returnType": "distance",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 317,
+        "height": 242
+      }
+    },
+    {
+      "id": "class-19",
+      "type": "classNode",
+      "position": {
+        "x": 1730,
+        "y": 2750
+      },
+      "data": {
+        "name": "EdgesRoute",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "GET /",
+            "parameters": [],
+            "returnType": "edges[]",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "POST /",
+            "parameters": [],
+            "returnType": "edge",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "PATCH /:id",
+            "parameters": [],
+            "returnType": "edge",
+            "visibility": "public"
+          },
+          {
+            "id": "m4",
+            "name": "PATCH /:id/type",
+            "parameters": [],
+            "returnType": "edge",
+            "visibility": "public"
+          },
+          {
+            "id": "m5",
+            "name": "DELETE /:id",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m6",
+            "name": "DELETE /batch",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 209,
+        "height": 206
+      }
+    },
+    {
+      "id": "class-20",
+      "type": "classNode",
+      "position": {
+        "x": 2000,
+        "y": 2750
+      },
+      "data": {
+        "name": "FilesRoute",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "GET /",
+            "parameters": [],
+            "returnType": "files[]",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "GET /active",
+            "parameters": [],
+            "returnType": "file",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "PUT /active",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m4",
+            "name": "POST /",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m5",
+            "name": "POST /save",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m6",
+            "name": "POST /save-all",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m7",
+            "name": "DELETE /:path",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m8",
+            "name": "PATCH /:path/rename",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 238,
+        "height": 242
+      }
+    },
+    {
+      "id": "class-21",
+      "type": "classNode",
+      "position": {
+        "x": 1350,
+        "y": 3050
+      },
+      "data": {
+        "name": "SearchRoute",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "GET /?q=&type=",
+            "parameters": [],
+            "returnType": "{nodes, edges}",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 274,
+        "height": 116
+      }
+    },
+    {
+      "id": "class-22",
+      "type": "classNode",
+      "position": {
+        "x": 1680,
+        "y": 3050
+      },
+      "data": {
+        "name": "LayoutRoute",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "POST /align",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "POST /distribute",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "POST /group",
+            "parameters": [],
+            "returnType": "group",
+            "visibility": "public"
+          }
+        ],
+        "color": "#f3e5f5"
+      },
+      "measured": {
+        "width": 216,
+        "height": 152
+      }
+    },
+    {
+      "id": "class-23",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 2350
+      },
+      "data": {
+        "name": "App",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "colorMode",
+            "type": "ColorModeSetting",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "snapMode",
+            "type": "SnapMode",
+            "visibility": "private"
+          },
+          {
+            "id": "p3",
+            "name": "showShortcuts",
+            "type": "boolean",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "handleSnapCycle",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "handleColorModeChange",
+            "parameters": [
+              {
+                "name": "mode",
+                "type": "string"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m3",
+            "name": "handleExport",
+            "parameters": [
+              {
+                "name": "format",
+                "type": "string"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 339,
+        "height": 206
+      }
+    },
+    {
+      "id": "class-24",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 2630
+      },
+      "data": {
+        "name": "FlowCanvas",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "contextMenu",
+            "type": "ContextMenuState | null",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "guides",
+            "type": "GuideLine[]",
+            "visibility": "private"
+          },
+          {
+            "id": "p3",
+            "name": "clipboardRef",
+            "type": "{ nodes, edges }",
+            "visibility": "private"
+          },
+          {
+            "id": "p4",
+            "name": "mousePosRef",
+            "type": "{ x, y }",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "handleNodesChange",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "handleEdgesChange",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m3",
+            "name": "handleConnect",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m4",
+            "name": "handleReconnect",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m5",
+            "name": "handlePaneDoubleClick",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m6",
+            "name": "handleDrop",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m7",
+            "name": "handleNodeContextMenu",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 303,
+        "height": 296
+      }
+    },
+    {
+      "id": "class-25",
+      "type": "classNode",
+      "position": {
+        "x": 460,
+        "y": 2630
+      },
+      "data": {
+        "name": "Sidebar",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "searchQuery",
+            "type": "string",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "collapsedPaths",
+            "type": "Set<string>",
+            "visibility": "private"
+          },
+          {
+            "id": "p3",
+            "name": "dragOverFolder",
+            "type": "string | null",
+            "visibility": "private"
+          },
+          {
+            "id": "p4",
+            "name": "editingFileName",
+            "type": "boolean",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "buildFolderTree",
+            "parameters": [],
+            "returnType": "TreeNode[]",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "handleDragStart",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m3",
+            "name": "handleFolderDrop",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m4",
+            "name": "commitNewFile",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m5",
+            "name": "commitFileNameEdit",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 252,
+        "height": 260
+      }
+    },
+    {
+      "id": "class-26",
+      "type": "classNode",
+      "position": {
+        "x": 770,
+        "y": 2630
+      },
+      "data": {
+        "name": "ContextMenu",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "x",
+            "type": "number",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "y",
+            "type": "number",
+            "visibility": "public"
+          },
+          {
+            "id": "p3",
+            "name": "type",
+            "type": "\"node\" | \"edge\" | \"selection\"",
+            "visibility": "public"
+          },
+          {
+            "id": "p4",
+            "name": "targetId",
+            "type": "string",
+            "visibility": "public"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "handleColorChange",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "handleStereotypeChange",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          },
+          {
+            "id": "m3",
+            "name": "handleDelete",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 295,
+        "height": 224
+      }
+    },
+    {
+      "id": "class-27",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 2980
+      },
+      "data": {
+        "name": "ClassNodeComponent",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "data",
+            "type": "ClassNodeData",
+            "visibility": "public"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "InlineEdit",
+            "parameters": [],
+            "returnType": "JSX",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "PropertyRow",
+            "parameters": [],
+            "returnType": "JSX",
+            "visibility": "private"
+          },
+          {
+            "id": "m3",
+            "name": "MethodRow",
+            "parameters": [],
+            "returnType": "JSX",
+            "visibility": "private"
+          },
+          {
+            "id": "m4",
+            "name": "AddPropertyButton",
+            "parameters": [],
+            "returnType": "JSX",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 216,
+        "height": 188
+      }
+    },
+    {
+      "id": "class-28",
+      "type": "classNode",
+      "position": {
+        "x": 370,
+        "y": 2980
+      },
+      "data": {
+        "name": "TextNodeComponent",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "data",
+            "type": "TextNodeData",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "editing",
+            "type": "boolean",
+            "visibility": "private"
+          },
+          {
+            "id": "p3",
+            "name": "draft",
+            "type": "string",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "MarkdownMedia",
+            "parameters": [],
+            "returnType": "JSX",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "handleSubmit",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 187,
+        "height": 188
+      }
+    },
+    {
+      "id": "class-29",
+      "type": "classNode",
+      "position": {
+        "x": 610,
+        "y": 2980
+      },
+      "data": {
+        "name": "GroupNodeComponent",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "data",
+            "type": "GroupNodeData",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "editing",
+            "type": "boolean",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "handleLabelSubmit",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 223,
+        "height": 152
+      }
+    },
+    {
+      "id": "class-30",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 3230
+      },
+      "data": {
+        "name": "UmlEdgeComponent",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "data",
+            "type": "ClassEdgeData",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "editing",
+            "type": "boolean",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "renderMarker",
+            "parameters": [],
+            "returnType": "SVG",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "name": "handleLabelEdit",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "private"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 209,
+        "height": 170
+      }
+    },
+    {
+      "id": "class-31",
+      "type": "classNode",
+      "position": {
+        "x": 370,
+        "y": 3230
+      },
+      "data": {
+        "name": "SettingsPopover",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "colorMode",
+            "type": "ColorModeSetting",
+            "visibility": "public"
+          },
+          {
+            "id": "p2",
+            "name": "snapMode",
+            "type": "SnapMode",
+            "visibility": "public"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "onSnapCycle",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "onExport",
+            "parameters": [
+              {
+                "name": "format",
+                "type": "string"
+              }
+            ],
+            "returnType": "void",
+            "visibility": "public"
+          }
+        ],
+        "color": "#e0f7fa"
+      },
+      "measured": {
+        "width": 259,
+        "height": 170
+      }
+    },
+    {
+      "id": "class-32",
+      "type": "classNode",
+      "position": {
+        "x": 100,
+        "y": 3900
+      },
+      "data": {
+        "name": "FileIO",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "EXCLUDED_DIRS",
+            "type": "Set<string>",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "IMAGE_EXTENSIONS",
+            "type": "Set<string>",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "serializeFile",
+            "parameters": [
+              {
+                "name": "file",
+                "type": "SchemataFile"
+              }
+            ],
+            "returnType": "string",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "deserializeFile",
+            "parameters": [
+              {
+                "name": "json",
+                "type": "string"
+              }
+            ],
+            "returnType": "SchemataFile",
+            "visibility": "public"
+          },
+          {
+            "id": "m3",
+            "name": "validateFile",
+            "parameters": [
+              {
+                "name": "file",
+                "type": "SchemataFile"
+              }
+            ],
+            "returnType": "string[]",
+            "visibility": "public"
+          },
+          {
+            "id": "m4",
+            "name": "writeToHandle",
+            "parameters": [
+              {
+                "name": "handle",
+                "type": "FileSystemFileHandle"
+              }
+            ],
+            "returnType": "Promise<void>",
+            "visibility": "public"
+          },
+          {
+            "id": "m5",
+            "name": "scanFolder",
+            "parameters": [
+              {
+                "name": "dir",
+                "type": "DirectoryHandle"
+              }
+            ],
+            "returnType": "Promise<ScanResult>",
+            "visibility": "public"
+          }
+        ],
+        "color": "#fff9c4"
+      },
+      "measured": {
+        "width": 461,
+        "height": 224
+      }
+    },
+    {
+      "id": "class-33",
+      "type": "classNode",
+      "position": {
+        "x": 620,
+        "y": 3900
+      },
+      "data": {
+        "name": "FolderTree",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "buildFolderTree",
+            "parameters": [
+              {
+                "name": "files",
+                "type": "Record<string, SchemataFile>"
+              }
+            ],
+            "returnType": "TreeNode[]",
+            "visibility": "public"
+          }
+        ],
+        "color": "#fff9c4"
+      },
+      "measured": {
+        "width": 505,
+        "height": 116
+      }
+    },
+    {
+      "id": "class-34",
+      "type": "classNode",
+      "position": {
+        "x": 1180,
+        "y": 3900
+      },
+      "data": {
+        "name": "ImageCache",
+        "properties": [
+          {
+            "id": "p1",
+            "name": "cache",
+            "type": "Map<string, string>",
+            "visibility": "private"
+          },
+          {
+            "id": "p2",
+            "name": "pending",
+            "type": "Map<string, Promise>",
+            "visibility": "private"
+          }
+        ],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "resolveImageUrl",
+            "parameters": [
+              {
+                "name": "handle",
+                "type": "DirectoryHandle"
+              },
+              {
+                "name": "src",
+                "type": "string"
+              }
+            ],
+            "returnType": "Promise<string | null>",
+            "visibility": "public"
+          },
+          {
+            "id": "m2",
+            "name": "clearImageCache",
+            "parameters": [],
+            "returnType": "void",
+            "visibility": "public"
+          }
+        ],
+        "color": "#fff9c4"
+      },
+      "measured": {
+        "width": 599,
+        "height": 170
+      }
+    },
+    {
+      "id": "class-35",
+      "type": "classNode",
+      "position": {
+        "x": 1840,
+        "y": 3900
+      },
+      "data": {
+        "name": "Alignment",
+        "properties": [],
+        "methods": [
+          {
+            "id": "m1",
+            "name": "calculateGuides",
+            "parameters": [
+              {
+                "name": "dragged",
+                "type": "NodeRect"
+              },
+              {
+                "name": "others",
+                "type": "NodeRect[]"
+              }
+            ],
+            "returnType": "SnapResult",
+            "visibility": "public"
+          }
+        ],
+        "color": "#fff9c4"
+      },
+      "measured": {
+        "width": 519,
+        "height": 116
+      }
+    },
+    {
+      "id": "text-8",
+      "type": "textNode",
+      "position": {
+        "x": 1700,
+        "y": 80
+      },
+      "data": {
+        "text": "### Data Model\n\nTypeScript interfaces for the core domain.\n\n**Row 1** — Data types: ClassProperty,\nMethodParameter, ClassMethod define UML\nclass internals. *NodeData holds payload.\n\n**Row 2** — Schema wrappers: *Schema adds\nid, position, type discriminant.\nClassEdgeSchema links via source/target.\n\n**SchemataFile** — Persistence format for\n.schemata.json files on disk.",
+        "color": "#e3f2fd",
+        "borderStyle": "dashed",
+        "opacity": 0.95
+      },
+      "measured": {
+        "width": 292,
+        "height": 254
+      }
+    },
+    {
+      "id": "text-9",
+      "type": "textNode",
+      "position": {
+        "x": 1200,
+        "y": 1280
+      },
+      "data": {
+        "text": "### Core State\n\n**CanvasStore** (Zustand) — Single source of truth.\nManages files, nodes, edges, undo/redo stacks,\ndirty tracking, and UI state. Every mutation\npushes an undo snapshot.\n\n**Bridge** — Server-to-browser RPC via WebSocket.\ncallStore(action, args) invokes store methods\nfrom the server side with 10s timeout.",
+        "color": "#e8f5e9",
+        "borderStyle": "dashed",
+        "opacity": 0.95
+      },
+      "measured": {
+        "width": 323,
+        "height": 199
+      }
+    },
+    {
+      "id": "text-10",
+      "type": "textNode",
+      "position": {
+        "x": 80,
+        "y": 3500
+      },
+      "data": {
+        "text": "### UI Components (React + xyflow)\n\n**App** — Root. Theme, snap mode, shortcuts.\n**FlowCanvas** — React Flow canvas with\nnode/edge CRUD, copy/paste, context menus.\n**Sidebar** — File tree with search and drag.\n**ClassNode** — Inline editing of properties\nand methods with visibility symbols.\n**TextNode** — Markdown with embedded media.\n**GroupNode** — Resizable container with label.\n**UmlEdge** — Relationship markers and labels.\n**ContextMenu** — Adapts to target type.",
+        "color": "#e0f7fa",
+        "borderStyle": "dashed",
+        "opacity": 0.95
+      },
+      "measured": {
+        "width": 308,
+        "height": 250
+      }
+    },
+    {
+      "id": "text-11",
+      "type": "textNode",
+      "position": {
+        "x": 1310,
+        "y": 3300
+      },
+      "data": {
+        "text": "### Server and API Routes\n\n**VitePlugin** — Intercepts /api/* requests,\nconverts Node HTTP to Fetch API, routes\nthrough HonoApp.\n\n**HonoApp** — Hono router composing all\nroute modules under /api.\n\n**FsScanner** — Recursively scans folders\nfor .schemata.json, images, and PDFs.\n\n**Routes** — Hono sub-routers calling\nBridge.callStore() for each endpoint.",
+        "color": "#f3e5f5",
+        "borderStyle": "dashed",
+        "opacity": 0.95
+      },
+      "measured": {
+        "width": 273,
+        "height": 254
+      }
+    },
+    {
+      "id": "text-12",
+      "type": "textNode",
+      "position": {
+        "x": 200,
+        "y": 4220
+      },
+      "data": {
+        "text": "### Utilities\n\n**FileIO** — Serialize/deserialize/validate\n.schemata.json files. File System Access API.\n**FolderTree** — Builds TreeNode[] hierarchy\nfor the Sidebar tree view.\n**ImageCache** — Blob URL cache with dedup.\n**Alignment** — Snap guides for node dragging.",
+        "color": "#fff9c4",
+        "borderStyle": "dashed",
+        "opacity": 0.95
+      },
+      "measured": {
+        "width": 299,
+        "height": 172
+      }
+    },
+    {
+      "id": "text-13",
+      "type": "textNode",
+      "position": {
+        "x": 1700,
+        "y": 320
+      },
+      "data": {
+        "text": "# Schemata Architecture\n\nA browser-based UML class diagram editor built with React, xyflow, Zustand, Hono, and Vite.\n\n---\n\n**Edge Legend:**\n- Filled diamond = Composition (owns)\n- Hollow diamond = Aggregation (has)\n- Dashed arrow = Dependency (uses)\n\n**Color Legend:**\n- Blue = Data model interfaces\n- Green = State management\n- Cyan = React components\n- Purple = Server layer\n- Yellow = Utility modules",
+        "color": "#fafafa",
+        "borderStyle": "solid",
+        "opacity": 1
+      },
+      "measured": {
+        "width": 586,
+        "height": 547
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "class-4",
+      "target": "class-1",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-2",
+      "source": "class-4",
+      "target": "class-3",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-3",
+      "source": "class-3",
+      "target": "class-2",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-4",
+      "source": "class-7",
+      "target": "class-4",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-5",
+      "source": "class-8",
+      "target": "class-5",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-6",
+      "source": "class-9",
+      "target": "class-6",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-7",
+      "source": "class-11",
+      "target": "class-10",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-8",
+      "source": "class-12",
+      "target": "class-7",
+      "type": "uml",
+      "data": {
+        "relationshipType": "aggregation"
+      }
+    },
+    {
+      "id": "edge-9",
+      "source": "class-12",
+      "target": "class-8",
+      "type": "uml",
+      "data": {
+        "relationshipType": "aggregation"
+      }
+    },
+    {
+      "id": "edge-10",
+      "source": "class-12",
+      "target": "class-9",
+      "type": "uml",
+      "data": {
+        "relationshipType": "aggregation"
+      }
+    },
+    {
+      "id": "edge-11",
+      "source": "class-12",
+      "target": "class-11",
+      "type": "uml",
+      "data": {
+        "relationshipType": "aggregation"
+      }
+    },
+    {
+      "id": "edge-12",
+      "source": "class-13",
+      "target": "class-12",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-13",
+      "source": "class-14",
+      "target": "class-13",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "RPC calls"
+      }
+    },
+    {
+      "id": "edge-14",
+      "source": "class-15",
+      "target": "class-14",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "initBridge()"
+      }
+    },
+    {
+      "id": "edge-15",
+      "source": "class-15",
+      "target": "class-16",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "routes through"
+      }
+    },
+    {
+      "id": "edge-16",
+      "source": "class-16",
+      "target": "class-18",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-17",
+      "source": "class-16",
+      "target": "class-19",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-18",
+      "source": "class-16",
+      "target": "class-20",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-19",
+      "source": "class-16",
+      "target": "class-21",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-20",
+      "source": "class-16",
+      "target": "class-22",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-21",
+      "source": "class-18",
+      "target": "class-14",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "callStore()"
+      }
+    },
+    {
+      "id": "edge-26",
+      "source": "class-17",
+      "target": "class-12",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-27",
+      "source": "class-16",
+      "target": "class-17",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-28",
+      "source": "class-23",
+      "target": "class-24",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-29",
+      "source": "class-23",
+      "target": "class-25",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-30",
+      "source": "class-23",
+      "target": "class-31",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-31",
+      "source": "class-24",
+      "target": "class-26",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-32",
+      "source": "class-24",
+      "target": "class-27",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-33",
+      "source": "class-24",
+      "target": "class-28",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-34",
+      "source": "class-24",
+      "target": "class-29",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-35",
+      "source": "class-24",
+      "target": "class-30",
+      "type": "uml",
+      "data": {
+        "relationshipType": "composition"
+      }
+    },
+    {
+      "id": "edge-36",
+      "source": "class-23",
+      "target": "class-13",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "reads state"
+      }
+    },
+    {
+      "id": "edge-37",
+      "source": "class-24",
+      "target": "class-13",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "reads & mutates"
+      }
+    },
+    {
+      "id": "edge-38",
+      "source": "class-25",
+      "target": "class-13",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-45",
+      "source": "class-27",
+      "target": "class-4",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-46",
+      "source": "class-28",
+      "target": "class-5",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-47",
+      "source": "class-29",
+      "target": "class-6",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-48",
+      "source": "class-30",
+      "target": "class-10",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-49",
+      "source": "class-25",
+      "target": "class-33",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-50",
+      "source": "class-24",
+      "target": "class-35",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-51",
+      "source": "class-24",
+      "target": "class-34",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-52",
+      "source": "class-28",
+      "target": "class-34",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    },
+    {
+      "id": "edge-53",
+      "source": "class-13",
+      "target": "class-32",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency",
+        "label": "save/load"
+      }
+    },
+    {
+      "id": "edge-54",
+      "source": "class-32",
+      "target": "class-12",
+      "type": "uml",
+      "data": {
+        "relationshipType": "dependency"
+      }
+    }
+  ]
+}
