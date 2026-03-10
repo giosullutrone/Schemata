@@ -58,8 +58,8 @@ Six relationship types with distinct visual markers:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/schemata.git
-cd schemata
+git clone https://github.com/giosullutrone/Schemata.git
+cd Schemata
 
 # Install dependencies
 npm install
@@ -201,19 +201,34 @@ The API runs as Hono middleware on the Vite dev server at `http://localhost:5173
 | | POST | `/api/canvas/nodes/batch` | Batch create/update/delete |
 | | PATCH | `/api/canvas/nodes/:id` | Update node data |
 | | PATCH | `/api/canvas/nodes/:id/position` | Move node |
+| | PATCH | `/api/canvas/nodes/positions` | Batch move nodes |
 | | DELETE | `/api/canvas/nodes/:id` | Delete node |
+| | DELETE | `/api/canvas/nodes/batch` | Bulk delete nodes |
+| | POST | `/api/canvas/nodes/duplicate` | Duplicate nodes (remaps edges) |
+| | GET | `/api/canvas/nodes/orphans` | Nodes with no edges |
+| | GET | `/api/canvas/nodes/overlaps` | Overlapping node pairs |
+| | GET | `/api/canvas/nodes/:id/connections` | Edges and neighbors for a node |
+| | GET | `/api/canvas/nodes/:id/hierarchy` | Inheritance hierarchy |
 | **Edges** | GET | `/api/canvas/edges` | List edges (optional `?source=`/`?target=`) |
 | | GET | `/api/canvas/edges/:id` | Get edge by ID |
-| | POST | `/api/canvas/edges` | Create edge |
+| | POST | `/api/canvas/edges` | Create edge (auto-closest handles) |
+| | POST | `/api/canvas/edges/batch` | Batch create edges |
 | | PATCH | `/api/canvas/edges/:id` | Update edge data |
 | | PATCH | `/api/canvas/edges/:id/type` | Change relationship type |
 | | DELETE | `/api/canvas/edges/:id` | Delete edge |
+| | DELETE | `/api/canvas/edges/batch` | Bulk delete edges |
 | **Search** | GET | `/api/canvas/search` | Wildcard search (`?q=User*&type=classNode`) |
 | **History** | POST | `/api/canvas/undo` | Undo last action |
 | | POST | `/api/canvas/redo` | Redo last undone action |
 | **Layout** | POST | `/api/canvas/layout/align` | Align nodes |
 | | POST | `/api/canvas/layout/distribute` | Distribute nodes evenly |
 | | POST | `/api/canvas/layout/group` | Group nodes into a container |
+| | POST | `/api/canvas/layout/auto` | Auto-layout (grid or hierarchical) |
+| **Stats** | GET | `/api/canvas/stats` | Canvas statistics overview |
+| **Export** | POST | `/api/canvas/export/png` | Export as PNG |
+| | POST | `/api/canvas/export/svg` | Export as SVG |
+| **Settings** | GET | `/api/settings` | Get current settings |
+| | PATCH | `/api/settings` | Update settings |
 | **Files** | GET | `/api/files` | List open files |
 | | GET | `/api/files/active` | Get active file |
 | | PUT | `/api/files/active` | Switch active file |
@@ -244,6 +259,8 @@ For detailed request/response examples, see [`schemata-plugin/skills/canvas-api/
 | **Ctrl+S** | Save |
 | **Ctrl+Shift+S** | Save all |
 | **Ctrl+B** | Toggle sidebar |
+| **Ctrl+F** | Search canvas |
+| **Ctrl+=** / **Ctrl+-** | Zoom in / Zoom out |
 | **Ctrl+0** | Zoom to fit |
 | **Delete** / **Backspace** | Delete selection |
 
@@ -308,6 +325,15 @@ npm run test
 
 ---
 
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Run tests (`npm test`) and make sure they pass
+4. Commit your changes and open a PR
+
 ## License
 
-MIT
+[MIT](LICENSE)

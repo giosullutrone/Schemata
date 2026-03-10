@@ -1,8 +1,13 @@
 {
   "name": "schemata",
-  "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Visual UML diagram editor with built-in Claude Code collaboration",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/giosullutrone/Schemata.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
