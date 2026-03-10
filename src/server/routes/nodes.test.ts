@@ -459,3 +459,41 @@ describe('PATCH /api/canvas/nodes/positions', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('GET /api/canvas/nodes/overlaps', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('returns overlapping node pairs', async () => {
+    mockCallStore.mockResolvedValueOnce([
+      { id: 'class-1', type: 'classNode', position: { x: 0, y: 0 }, measured: { width: 200, height: 150 } },
+      { id: 'class-2', type: 'classNode', position: { x: 100, y: 50 }, measured: { width: 200, height: 150 } },
+    ]);
+    const res = await app.request('/api/canvas/nodes/overlaps');
+    expect(res.status).toBe(200);
+    const json = await res.json() as any;
+    expect(json.data).toHaveLength(1);
+    expect(json.data[0].nodeA).toBe('class-1');
+    expect(json.data[0].nodeB).toBe('class-2');
+    expect(json.data[0].overlapArea).toBeGreaterThan(0);
+  });
+
+  it('returns empty when no overlaps', async () => {
+    mockCallStore.mockResolvedValueOnce([
+      { id: 'class-1', type: 'classNode', position: { x: 0, y: 0 }, measured: { width: 100, height: 100 } },
+      { id: 'class-2', type: 'classNode', position: { x: 300, y: 0 }, measured: { width: 100, height: 100 } },
+    ]);
+    const res = await app.request('/api/canvas/nodes/overlaps');
+    const json = await res.json() as any;
+    expect(json.data).toEqual([]);
+  });
+
+  it('excludes group-child overlaps', async () => {
+    mockCallStore.mockResolvedValueOnce([
+      { id: 'group-1', type: 'groupNode', position: { x: 0, y: 0 }, style: { width: 400, height: 400 } },
+      { id: 'class-1', type: 'classNode', position: { x: 50, y: 50 }, measured: { width: 150, height: 100 }, parentId: 'group-1' },
+    ]);
+    const res = await app.request('/api/canvas/nodes/overlaps');
+    const json = await res.json() as any;
+    expect(json.data).toEqual([]);
+  });
+});

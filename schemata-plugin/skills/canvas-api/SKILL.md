@@ -50,6 +50,7 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 | DELETE | /api/canvas/nodes/batch | `{ "ids": ["class-1", "class-2"] }` | Bulk delete nodes (max 100) |
 | POST | /api/canvas/nodes/duplicate | `{ "ids": ["class-1"], "offsetX": 30, "offsetY": 30 }` | Duplicate nodes (remaps edges) |
 | GET | /api/canvas/nodes/orphans | — | Get nodes with no edges |
+| GET | /api/canvas/nodes/overlaps | — | Get overlapping node pairs (excludes parent–child group overlaps) |
 | GET | /api/canvas/nodes/groups/:id/children | — | Get child nodes within a group |
 | GET | /api/canvas/nodes/:id/connections | — | Get edges and connected nodes for a node |
 | GET | /api/canvas/nodes/:id/hierarchy | ?direction=both | Get inheritance/implementation hierarchy (ancestors, descendants, or both) |
@@ -61,9 +62,9 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 
 **Node types:** `classNode`, `textNode`, `groupNode`
 
-**classNode** — Created with `type: "classNode"`. Can include `name`, `properties`, `methods`, `stereotype`, `color` directly on POST (single-call creation). If omitted, starts as `name: "NewClass"` with empty properties/methods.
+**classNode** — For UML classes only (with name, properties, methods). Do NOT use classNode for plain text, annotations, titles, or descriptions — use `textNode` instead.  Can include `name`, `properties`, `methods`, `stereotype`, `color` directly on POST (single-call creation). If omitted, starts as `name: "NewClass"` with empty properties/methods.
 
-**textNode** — Created with `type: "textNode"`. Optional extra fields: `text`, `color`, `borderStyle`, `opacity`, `parentId` (node to connect to), `parentType` (`"classNode"` or `"groupNode"`).
+**textNode** — For annotations, labels, titles, descriptions, and any free-form text. Always use `textNode` (not `classNode`) when the content is text rather than a UML class with properties/methods. Optional extra fields: `text`, `color`, `borderStyle`, `opacity`, `parentId` (node to connect to), `parentType` (`"classNode"` or `"groupNode"`).
 
 **groupNode** — Created only via `POST /api/canvas/layout/group` (not directly via POST /api/canvas/nodes). Groups visually contain other nodes.
 
@@ -101,7 +102,9 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 
 **Optional edge fields (on create and update):** `label`, `color`, `strokeStyle`, `labelWidth`, `labelHeight`, `sourceHandle`, `targetHandle`
 
-**Connection handles:** Each class node has 4 side handles: `top`, `bottom`, `left`, `right`. Additionally, each property has a handle `prop-{id}` and each method has `method-{id}` — use these to connect edges directly to specific members. If omitted, React Flow auto-picks the closest handle based on node positions.
+**Connection handles:** Each node has 4 side handles: `top`, `bottom`, `left`, `right`. Additionally, each class node property has a handle `prop-{id}` and each method has `method-{id}` — use these to connect edges directly to specific members.
+
+**Auto closest handles (default):** When `sourceHandle` and/or `targetHandle` are omitted, the API automatically computes the closest handle pair based on node positions. For example, if the source node is above the target, `sourceHandle: "bottom"` and `targetHandle: "top"` are used. This produces clean, short edge paths without manual handle selection. You may override one or both handles when you need a specific routing (e.g., forcing a left-to-right connection for horizontal layouts, or connecting to a specific property/method handle).
 
 **Edge stroke styles:** `solid`, `dashed`, `dotted`, `double`
 
@@ -402,6 +405,11 @@ curl -s 'http://localhost:5173/api/canvas/nodes/class-1/hierarchy?direction=desc
 
 # Find orphan nodes (no edges)
 curl -s http://localhost:5173/api/canvas/nodes/orphans
+
+# Detect overlapping nodes (excludes group–child overlaps)
+curl -s http://localhost:5173/api/canvas/nodes/overlaps
+# → { "data": [{ "nodeA": "class-1", "nodeB": "class-2", "overlapArea": 5000 }, ...] }
+# Use this after layout to find and fix visual collisions
 ```
 
 ### 14. Canvas stats and export
@@ -576,6 +584,7 @@ curl -s -X POST http://localhost:5173/api/files/save
 - **Text nodes as annotations**: Create textNode with `parentId` to auto-connect to a class
 
 ### Text Nodes
+- **Use textNode for text, not classNode**: If the content is text (annotations, titles, descriptions, comments), always use `textNode`. Never put text into a `classNode` — classNodes are strictly for UML classes with properties and methods.
 - **Width is auto-determined by content**: Text nodes auto-size to fit their text. Use explicit `\n` line breaks to control width — long unbroken lines produce very wide nodes.
 - **Markdown supported**: Text nodes render markdown. Use `###` headers, `**bold**`, `\n` newlines.
 - **Color and border**: Set `color` for background tint, `borderStyle` for visual emphasis (`"dashed"` works well for comments).
@@ -592,6 +601,7 @@ curl -s -X POST http://localhost:5173/api/files/save
 - **Groups**: Use `POST /api/canvas/layout/group` with rects to create groupNodes. Position child nodes first, then create the group.
 - **Moving groups moves children**: When you move a group node via `PATCH /nodes/:id/position` or `PATCH /nodes/positions`, all child nodes inside the group are automatically moved by the same delta. This matches the UI drag behavior.
 - **Measured dimensions**: GET nodes returns `measured.width` and `measured.height` — the actual browser-rendered pixel sizes. Use these for accurate `rects` in layout/group and fitGroupToNodes calls.
+- **Overlap detection**: Use `GET /nodes/overlaps` after layout to find visual collisions. Returns pairs with `overlapArea` in pixels². Group–child overlaps are excluded (they're expected). Fix overlaps by repositioning with `PATCH /nodes/positions`.
 - **Fit groups after moves**: When you reposition nodes inside a group (not the group itself), the group boundary does NOT auto-resize. Call `PATCH /nodes/groups/:id/fit` with the updated nodeIds to resize the group.
 - **Label and color groups**: After creating a group, PATCH it with `{"label":"Name","color":"#hex"}` for visual organization.
 - **Measure spacing**: Use `/nodes/:id/distance/:otherId` to check distances before aligning or distributing
@@ -632,13 +642,22 @@ curl -s -X POST http://localhost:5173/api/canvas/nodes \
   -d '{"type":"classNode","x":100,"y":100,"name":"UserService","color":"#e8f5e9","stereotype":"service"}'
 ```
 
-**Styling edges on create:**
+**Styling edges on create (handles auto-computed from positions):**
 ```bash
 curl -s -X POST http://localhost:5173/api/canvas/edges \
   -H 'Content-Type: application/json' \
   -d '{
     "source":"class-1","target":"class-2","relationshipType":"dependency",
-    "label":"calls","color":"#E65100","strokeStyle":"dashed",
+    "label":"calls","color":"#E65100","strokeStyle":"dashed"
+  }'
+```
+
+**Override handles for explicit routing (e.g., forced left→right):**
+```bash
+curl -s -X POST http://localhost:5173/api/canvas/edges \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source":"class-1","target":"class-2","relationshipType":"dependency",
     "sourceHandle":"right","targetHandle":"left"
   }'
 ```
@@ -663,6 +682,7 @@ curl -s -X POST http://localhost:5173/api/canvas/edges/batch \
 - Groups should match the color of the nodes they contain
 
 ### Edges
+- **Auto closest handles**: Omit `sourceHandle`/`targetHandle` and the API picks the closest pair based on node positions. This is the recommended default — only specify handles when you need explicit routing (e.g., horizontal left→right layouts, connecting to a specific property/method handle).
 - **Node validation**: Edge creation validates source/target exist — no more silent broken edges.
 - **Style on create**: Pass `label`, `color`, `strokeStyle` directly on `POST /edges` and `POST /edges/batch` — no separate PATCH needed.
 - **Reduce clutter on large diagrams**: If A composes B and both depend on C, the B→C dependency edge is visually implied through A. Remove transitive dependency edges with `DELETE /edges/batch` to keep the diagram readable.

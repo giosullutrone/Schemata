@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { callStore } from '../bridge.js';
+import { findOverlappingNodes, type OverlapNode } from '../../utils/overlapDetection.js';
 
 const nodes = new Hono();
 
@@ -135,6 +136,29 @@ nodes.patch('/groups/:id/fit', async (c) => {
 nodes.get('/:id/distance/:otherId', async (c) => {
   const data = await callStore('getNodeDistance', [c.req.param('id'), c.req.param('otherId')]);
   if (!data) return c.json({ error: 'One or both nodes not found' }, 404);
+  return c.json({ data });
+});
+
+nodes.get('/overlaps', async (c) => {
+  const DEFAULT_W = 200;
+  const DEFAULT_H = 150;
+  const allNodes = (await callStore('getNodes', [])) as Array<{
+    id: string;
+    type: string;
+    position: { x: number; y: number };
+    measured?: { width?: number; height?: number };
+    style?: { width?: number; height?: number };
+    parentId?: string;
+  }>;
+  const overlapNodes: OverlapNode[] = allNodes.map((n) => ({
+    id: n.id,
+    type: n.type,
+    position: n.position,
+    width: n.measured?.width ?? n.style?.width ?? DEFAULT_W,
+    height: n.measured?.height ?? n.style?.height ?? DEFAULT_H,
+    parentId: n.parentId,
+  }));
+  const data = findOverlappingNodes(overlapNodes);
   return c.json({ data });
 });
 

@@ -33,10 +33,10 @@ describe('GET /api/canvas/edges', () => {
 });
 
 describe('POST /api/canvas/edges', () => {
-  it('creates an edge', async () => {
-    // getNode for source, getNode for target, then addEdge
-    mockCallStore.mockResolvedValueOnce({ id: 'class-1' });
-    mockCallStore.mockResolvedValueOnce({ id: 'class-2' });
+  it('creates an edge with auto-computed closest handles', async () => {
+    // source at top-left, target below → should get bottom/top handles
+    mockCallStore.mockResolvedValueOnce({ id: 'class-1', position: { x: 100, y: 0 } });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-2', position: { x: 100, y: 300 } });
     mockCallStore.mockResolvedValueOnce({ id: 'edge-1', source: 'class-1', target: 'class-2' });
 
     const res = await app.request('/api/canvas/edges', {
@@ -45,12 +45,26 @@ describe('POST /api/canvas/edges', () => {
       body: JSON.stringify({ source: 'class-1', target: 'class-2', relationshipType: 'inheritance' }),
     });
     expect(res.status).toBe(201);
-    expect(mockCallStore).toHaveBeenCalledWith('addEdge', ['class-1', 'class-2', 'inheritance', undefined, undefined]);
+    expect(mockCallStore).toHaveBeenCalledWith('addEdge', ['class-1', 'class-2', 'inheritance', 'bottom', 'top']);
+  });
+
+  it('uses explicit handles when provided', async () => {
+    mockCallStore.mockResolvedValueOnce({ id: 'class-1', position: { x: 100, y: 0 } });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-2', position: { x: 100, y: 300 } });
+    mockCallStore.mockResolvedValueOnce({ id: 'edge-1', source: 'class-1', target: 'class-2' });
+
+    const res = await app.request('/api/canvas/edges', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'class-1', target: 'class-2', relationshipType: 'inheritance', sourceHandle: 'left', targetHandle: 'right' }),
+    });
+    expect(res.status).toBe(201);
+    expect(mockCallStore).toHaveBeenCalledWith('addEdge', ['class-1', 'class-2', 'inheritance', 'left', 'right']);
   });
 
   it('rejects edge with non-existent source node', async () => {
     mockCallStore.mockResolvedValueOnce(null); // source not found
-    mockCallStore.mockResolvedValueOnce({ id: 'class-2' }); // target found
+    mockCallStore.mockResolvedValueOnce({ id: 'class-2', position: { x: 0, y: 0 } }); // target found
 
     const res = await app.request('/api/canvas/edges', {
       method: 'POST',
@@ -194,8 +208,8 @@ describe('POST /api/canvas/edges — style fields', () => {
 
   it('applies label and color on create', async () => {
     // getNode source, getNode target, addEdge, updateEdgeData
-    mockCallStore.mockResolvedValueOnce({ id: 'class-1' });
-    mockCallStore.mockResolvedValueOnce({ id: 'class-2' });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-1', position: { x: 0, y: 0 } });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-2', position: { x: 0, y: 300 } });
     mockCallStore.mockResolvedValueOnce({ id: 'edge-1', source: 'class-1', target: 'class-2' });
     mockCallStore.mockResolvedValueOnce({ id: 'edge-1', data: { label: 'uses', color: '#E74C3C' } });
 
@@ -212,8 +226,8 @@ describe('POST /api/canvas/edges — style fields', () => {
   });
 
   it('applies strokeStyle on create', async () => {
-    mockCallStore.mockResolvedValueOnce({ id: 'class-1' });
-    mockCallStore.mockResolvedValueOnce({ id: 'class-2' });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-1', position: { x: 0, y: 0 } });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-2', position: { x: 0, y: 300 } });
     mockCallStore.mockResolvedValueOnce({ id: 'edge-1' });
     mockCallStore.mockResolvedValueOnce({ id: 'edge-1', data: { strokeStyle: 'dashed' } });
 
@@ -230,8 +244,8 @@ describe('POST /api/canvas/edges — style fields', () => {
   });
 
   it('skips updateEdgeData when no style fields provided', async () => {
-    mockCallStore.mockResolvedValueOnce({ id: 'class-1' });
-    mockCallStore.mockResolvedValueOnce({ id: 'class-2' });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-1', position: { x: 0, y: 0 } });
+    mockCallStore.mockResolvedValueOnce({ id: 'class-2', position: { x: 0, y: 300 } });
     mockCallStore.mockResolvedValueOnce({ id: 'edge-1' });
 
     await app.request('/api/canvas/edges', {
@@ -247,9 +261,12 @@ describe('POST /api/canvas/edges — style fields', () => {
 describe('POST /api/canvas/edges/batch', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('creates edges in batch', async () => {
+  it('creates edges in batch with auto-computed handles', async () => {
     // getNodes for node validation, then addEdgesBatch
-    mockCallStore.mockResolvedValueOnce([{ id: 'class-1' }, { id: 'class-2' }]);
+    mockCallStore.mockResolvedValueOnce([
+      { id: 'class-1', position: { x: 0, y: 0 } },
+      { id: 'class-2', position: { x: 0, y: 300 } },
+    ]);
     mockCallStore.mockResolvedValueOnce([
       { id: 'edge-1', source: 'class-1', target: 'class-2' },
     ]);
@@ -262,7 +279,9 @@ describe('POST /api/canvas/edges/batch', () => {
       }),
     });
     expect(res.status).toBe(201);
-    expect(mockCallStore).toHaveBeenCalledWith('addEdgesBatch', expect.any(Array));
+    expect(mockCallStore).toHaveBeenCalledWith('addEdgesBatch', [
+      [{ source: 'class-1', target: 'class-2', relationshipType: 'inheritance', sourceHandle: 'bottom', targetHandle: 'top' }],
+    ]);
   });
 
   it('rejects empty edges array', async () => {
@@ -313,7 +332,7 @@ describe('POST /api/canvas/edges — rejects non-existent target', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('rejects edge with non-existent target node', async () => {
-    mockCallStore.mockResolvedValueOnce({ id: 'class-1' }); // source found
+    mockCallStore.mockResolvedValueOnce({ id: 'class-1', position: { x: 0, y: 0 } }); // source found
     mockCallStore.mockResolvedValueOnce(null); // target not found
 
     const res = await app.request('/api/canvas/edges', {

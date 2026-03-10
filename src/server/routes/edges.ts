@@ -1,5 +1,21 @@
 import { Hono } from 'hono';
 import { callStore } from '../bridge.js';
+import { closestHandles } from '../../utils/closestHandles.js';
+
+const DEFAULT_NODE_SIZE = { width: 200, height: 150 };
+
+interface NodeLike {
+  id: string;
+  position: { x: number; y: number };
+  style?: { width?: number; height?: number };
+}
+
+function getNodeSize(node: NodeLike) {
+  return {
+    width: node.style?.width ?? DEFAULT_NODE_SIZE.width,
+    height: node.style?.height ?? DEFAULT_NODE_SIZE.height,
+  };
+}
 
 const edges = new Hono();
 
@@ -35,7 +51,17 @@ edges.post('/', async (c) => {
   ]);
   if (!sourceNode) return c.json({ error: `Source node '${source}' not found` }, 400);
   if (!targetNode) return c.json({ error: `Target node '${target}' not found` }, 400);
-  const data = await callStore('addEdge', [source, target, relationshipType, sourceHandle, targetHandle]);
+  // Auto-compute closest handles when not explicitly provided
+  let finalSourceHandle = sourceHandle;
+  let finalTargetHandle = targetHandle;
+  if (!finalSourceHandle || !finalTargetHandle) {
+    const sn = sourceNode as NodeLike;
+    const tn = targetNode as NodeLike;
+    const [autoSrc, autoTgt] = closestHandles(sn.position, getNodeSize(sn), tn.position, getNodeSize(tn));
+    if (!finalSourceHandle) finalSourceHandle = autoSrc;
+    if (!finalTargetHandle) finalTargetHandle = autoTgt;
+  }
+  const data = await callStore('addEdge', [source, target, relationshipType, finalSourceHandle, finalTargetHandle]);
   // Apply optional style fields (label, color, strokeStyle, etc.) if provided
   const { label, color, strokeStyle, labelWidth, labelHeight } = styleFields;
   if (data && (label !== undefined || color !== undefined || strokeStyle !== undefined || labelWidth !== undefined || labelHeight !== undefined)) {
@@ -73,13 +99,25 @@ edges.post('/batch', async (c) => {
     }
   }
   // Validate all referenced nodes exist
-  const allNodes = (await callStore('getNodes', [])) as Array<{ id: string }>;
-  const nodeIds = new Set(allNodes.map(n => n.id));
+  const allNodes = (await callStore('getNodes', [])) as NodeLike[];
+  const nodeMap = new Map(allNodes.map(n => [n.id, n]));
   for (const e of edgeDefs) {
-    if (!nodeIds.has(e.source)) return c.json({ error: `Source node '${e.source}' not found` }, 400);
-    if (!nodeIds.has(e.target)) return c.json({ error: `Target node '${e.target}' not found` }, 400);
+    if (!nodeMap.has(e.source)) return c.json({ error: `Source node '${e.source}' not found` }, 400);
+    if (!nodeMap.has(e.target)) return c.json({ error: `Target node '${e.target}' not found` }, 400);
   }
-  const data = await callStore('addEdgesBatch', [edgeDefs]);
+  // Auto-compute closest handles when not explicitly provided
+  const resolvedEdges = edgeDefs.map((e) => {
+    if (e.sourceHandle && e.targetHandle) return e;
+    const sn = nodeMap.get(e.source)!;
+    const tn = nodeMap.get(e.target)!;
+    const [autoSrc, autoTgt] = closestHandles(sn.position, getNodeSize(sn), tn.position, getNodeSize(tn));
+    return {
+      ...e,
+      sourceHandle: e.sourceHandle ?? autoSrc,
+      targetHandle: e.targetHandle ?? autoTgt,
+    };
+  });
+  const data = await callStore('addEdgesBatch', [resolvedEdges]);
   return c.json({ data }, 201);
 });
 
