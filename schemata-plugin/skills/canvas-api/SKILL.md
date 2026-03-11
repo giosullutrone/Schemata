@@ -95,6 +95,7 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 | POST | /api/canvas/edges/batch | `{ "edges": [...] }` | Batch create edges (atomic undo, max 100, validates nodes) |
 | PATCH | /api/canvas/edges/:id | `{ "label": "uses" }` | Update edge data |
 | PATCH | /api/canvas/edges/:id/type | `{ "type": "composition" }` | Change relationship type |
+| POST | /api/canvas/edges/recalculate-handles | — | Recalculate all edge handles to use closest side handles based on current node positions |
 | DELETE | /api/canvas/edges/:id | — | Delete edge |
 | DELETE | /api/canvas/edges/batch | `{ "ids": ["edge-1", "edge-2"] }` | Bulk delete edges |
 
@@ -140,7 +141,9 @@ All responses wrap data in `{ "data": ... }`. Errors return `{ "error": "message
 
 **Auto-layout strategies:**
 - `grid` — arranges nodes in a grid with configurable `gap` (default 40px). Uses measured dimensions for accurate spacing.
-- `hierarchical` — arranges inheritance/implementation trees top-down, with roots at top and descendants below. Non-tree nodes placed in a separate row.
+- `hierarchical` — arranges inheritance/implementation trees top-down, with roots at top and descendants below. Uses measured node dimensions for spacing so nodes don't overlap. Non-tree nodes placed in a separate row. Optional `gap` controls spacing (default 60px horizontal, 80px vertical).
+
+**Auto-layout also recalculates edge handles**: After repositioning, all edges are automatically updated to use the closest side handles based on the new node positions. No separate call needed.
 
 ### Files
 
@@ -340,6 +343,10 @@ curl -s -X POST http://localhost:5173/api/canvas/layout/auto \
 curl -s -X POST http://localhost:5173/api/canvas/viewport/fit \
   -H 'Content-Type: application/json' \
   -d '{"padding":60}'
+
+# Recalculate edge handles independently (e.g., after manual repositioning)
+curl -s -X POST http://localhost:5173/api/canvas/edges/recalculate-handles
+# → { "data": { "updated": 5 } }  (number of edges whose handles changed)
 ```
 
 ### 9. File management
@@ -683,6 +690,7 @@ curl -s -X POST http://localhost:5173/api/canvas/edges/batch \
 
 ### Edges
 - **Auto closest handles**: Omit `sourceHandle`/`targetHandle` and the API picks the closest pair based on node positions. This is the recommended default — only specify handles when you need explicit routing (e.g., horizontal left→right layouts, connecting to a specific property/method handle).
+- **Recalculate handles after repositioning**: After moving nodes (especially batch moves), call `POST /edges/recalculate-handles` to update all edge handles to use the closest connection points. Auto-layout does this automatically, but manual repositioning does not.
 - **Node validation**: Edge creation validates source/target exist — no more silent broken edges.
 - **Style on create**: Pass `label`, `color`, `strokeStyle` directly on `POST /edges` and `POST /edges/batch` — no separate PATCH needed.
 - **Reduce clutter on large diagrams**: If A composes B and both depend on C, the B→C dependency edge is visually implied through A. Remove transitive dependency edges with `DELETE /edges/batch` to keep the diagram readable.

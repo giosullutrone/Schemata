@@ -121,6 +121,11 @@ edges.post('/batch', async (c) => {
   return c.json({ data }, 201);
 });
 
+edges.post('/recalculate-handles', async (c) => {
+  const data = await callStore('recalculateEdgeHandles', []);
+  return c.json({ data });
+});
+
 edges.patch('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json<Record<string, unknown>>();

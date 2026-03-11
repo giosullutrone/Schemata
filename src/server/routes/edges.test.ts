@@ -345,3 +345,34 @@ describe('POST /api/canvas/edges — rejects non-existent target', () => {
     expect(json.error).toContain('class-999');
   });
 });
+
+describe('POST /api/canvas/edges/recalculate-handles', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('calls recalculateEdgeHandles and returns result', async () => {
+    mockCallStore.mockResolvedValueOnce({ updated: 3 });
+
+    const res = await app.request('/api/canvas/edges/recalculate-handles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json() as any;
+    expect(json.data.updated).toBe(3);
+    expect(mockCallStore).toHaveBeenCalledWith('recalculateEdgeHandles', []);
+  });
+
+  it('returns 0 updated when no edges need changes', async () => {
+    mockCallStore.mockResolvedValueOnce({ updated: 0 });
+
+    const res = await app.request('/api/canvas/edges/recalculate-handles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json() as any;
+    expect(json.data.updated).toBe(0);
+  });
+});

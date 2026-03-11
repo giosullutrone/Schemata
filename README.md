@@ -213,6 +213,7 @@ The API runs as Hono middleware on the Vite dev server at `http://localhost:5173
 | | GET | `/api/canvas/edges/:id` | Get edge by ID |
 | | POST | `/api/canvas/edges` | Create edge (auto-closest handles) |
 | | POST | `/api/canvas/edges/batch` | Batch create edges |
+| | POST | `/api/canvas/edges/recalculate-handles` | Recalculate all edge handles to closest |
 | | PATCH | `/api/canvas/edges/:id` | Update edge data |
 | | PATCH | `/api/canvas/edges/:id/type` | Change relationship type |
 | | DELETE | `/api/canvas/edges/:id` | Delete edge |

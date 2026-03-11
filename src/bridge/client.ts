@@ -1,6 +1,7 @@
 import { useCanvasStore } from '../store/useCanvasStore';
 import type { RelationshipType, ClassEdgeData, ClassEdgeSchema, CanvasNodeSchema, SchemataFile } from '../types/schema';
 import { GROUP_PADDING, GROUP_LABEL_HEIGHT } from '../constants';
+import { closestHandles } from '../utils/closestHandles';
 
 interface BridgeRequest {
   id: string;
@@ -186,6 +187,8 @@ function handleAction(action: string, args: unknown[]): unknown {
       store.pushUndoSnapshot();
 
       if (strategy === 'hierarchical') {
+        const hGap = (args[1] as number) ?? 60;
+        const vGap = (args[1] as number) ?? 80;
         // Build adjacency from inheritance/implementation edges
         const inheritanceTypes = new Set(['inheritance', 'implementation']);
         const children = new Map<string, string[]>();
@@ -206,6 +209,15 @@ function handleAction(action: string, args: unknown[]): unknown {
         const roots = classNodes.filter(n => !hasParent.has(n.id));
         const nonTree = classNodes.filter(n => !roots.includes(n) && !hasParent.has(n.id));
 
+        // Build a size map for all nodes
+        const nodeSize = (n: typeof file.nodes[0]) => ({
+          w: (n as { measured?: { width?: number } }).measured?.width
+            ?? (n as { style?: { width?: number } }).style?.width ?? 200,
+          h: (n as { measured?: { height?: number } }).measured?.height
+            ?? (n as { style?: { height?: number } }).style?.height ?? 150,
+        });
+        const sizeMap = new Map(file.nodes.map(n => [n.id, nodeSize(n)]));
+
         // BFS to assign levels
         const levels = new Map<string, number>();
         const queue: Array<{ id: string; level: number }> = [];
@@ -220,25 +232,50 @@ function handleAction(action: string, args: unknown[]): unknown {
           }
         }
 
-        // Position by level
+        // Group by level
         const byLevel = new Map<number, string[]>();
         for (const [id, level] of levels) {
           if (!byLevel.has(level)) byLevel.set(level, []);
           byLevel.get(level)!.push(id);
         }
-        const colWidth = 250;
-        const rowHeight = 200;
+
+        // Compute row heights (max node height per level)
+        const rowHeights = new Map<number, number>();
+        for (const [level, ids] of byLevel) {
+          rowHeights.set(level, Math.max(...ids.map(id => sizeMap.get(id)?.h ?? 150)));
+        }
+
+        // Position nodes with size-aware spacing
         const posMap = new Map<string, { x: number; y: number }>();
         for (const [level, ids] of byLevel) {
+          let x = 0;
           ids.forEach((id, i) => {
-            posMap.set(id, { x: i * colWidth, y: level * rowHeight });
+            if (i > 0) x += hGap;
+            posMap.set(id, { x, y: 0 }); // y set below
+            x += sizeMap.get(id)?.w ?? 200;
           });
         }
-        // Place non-tree class nodes in a row below
+        // Set y positions using accumulated row heights
+        let yOffset = 0;
         const maxLevel = Math.max(...byLevel.keys(), 0);
+        for (let level = 0; level <= maxLevel; level++) {
+          const ids = byLevel.get(level);
+          if (ids) {
+            for (const id of ids) {
+              const pos = posMap.get(id)!;
+              posMap.set(id, { x: pos.x, y: yOffset });
+            }
+            yOffset += (rowHeights.get(level) ?? 150) + vGap;
+          }
+        }
+
+        // Place non-tree and non-class nodes in a row below
         const otherNodes = [...nonTree, ...file.nodes.filter(n => n.type !== 'classNode' && !levels.has(n.id))];
+        let otherX = 0;
         otherNodes.forEach((n, i) => {
-          posMap.set(n.id, { x: i * colWidth, y: (maxLevel + 2) * rowHeight });
+          if (i > 0) otherX += hGap;
+          posMap.set(n.id, { x: otherX, y: yOffset + vGap });
+          otherX += sizeMap.get(n.id)?.w ?? 200;
         });
 
         store.setCanvasNodes(
@@ -282,6 +319,44 @@ function handleAction(action: string, args: unknown[]): unknown {
 
       return { success: true };
     }
+    // ── Edge handle recalculation ──
+    case 'recalculateEdgeHandles': {
+      if (!file || file.edges.length === 0) return { updated: 0 };
+      const nodeMap = new Map(file.nodes.map(n => [n.id, n]));
+      const sideHandles = new Set(['top', 'bottom', 'left', 'right']);
+      let updated = 0;
+      const newEdges = file.edges.map(edge => {
+        // Skip edges with property/method handles (non-side handles)
+        if (edge.sourceHandle && !sideHandles.has(edge.sourceHandle)) return edge;
+        if (edge.targetHandle && !sideHandles.has(edge.targetHandle)) return edge;
+        const sn = nodeMap.get(edge.source);
+        const tn = nodeMap.get(edge.target);
+        if (!sn || !tn) return edge;
+        const srcSize = {
+          width: (sn as { measured?: { width?: number } }).measured?.width
+            ?? (sn as { style?: { width?: number } }).style?.width ?? 200,
+          height: (sn as { measured?: { height?: number } }).measured?.height
+            ?? (sn as { style?: { height?: number } }).style?.height ?? 150,
+        };
+        const tgtSize = {
+          width: (tn as { measured?: { width?: number } }).measured?.width
+            ?? (tn as { style?: { width?: number } }).style?.width ?? 200,
+          height: (tn as { measured?: { height?: number } }).measured?.height
+            ?? (tn as { style?: { height?: number } }).style?.height ?? 150,
+        };
+        const [newSrc, newTgt] = closestHandles(sn.position, srcSize, tn.position, tgtSize);
+        if (newSrc !== edge.sourceHandle || newTgt !== edge.targetHandle) {
+          updated++;
+          return { ...edge, sourceHandle: newSrc, targetHandle: newTgt };
+        }
+        return edge;
+      });
+      if (updated > 0) {
+        store.setCanvasEdges(newEdges as ClassEdgeSchema[]);
+      }
+      return { updated };
+    }
+
     // ── Reads ──
     case 'getCanvas':
       return file ? { nodes: file.nodes, edges: file.edges, viewport: file.viewport } : null;

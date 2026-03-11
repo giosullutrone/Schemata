@@ -149,7 +149,9 @@ describe('Layout routes', () => {
   });
 
   describe('POST /api/canvas/layout/auto', () => {
-    it('applies auto layout with default strategy', async () => {
+    it('applies auto layout and recalculates edge handles', async () => {
+      // autoLayout, then recalculateEdgeHandles
+      mockCallStore.mockResolvedValueOnce(undefined);
       mockCallStore.mockResolvedValueOnce(undefined);
 
       const res = await app.request('/api/canvas/layout/auto', {
@@ -162,9 +164,11 @@ describe('Layout routes', () => {
       expect(res.status).toBe(200);
       expect(json).toEqual({ data: { success: true } });
       expect(mockCallStore).toHaveBeenCalledWith('autoLayout', ['grid', undefined]);
+      expect(mockCallStore).toHaveBeenCalledWith('recalculateEdgeHandles', []);
     });
 
-    it('applies hierarchical strategy with custom gap', async () => {
+    it('applies hierarchical strategy and recalculates handles', async () => {
+      mockCallStore.mockResolvedValueOnce(undefined);
       mockCallStore.mockResolvedValueOnce(undefined);
 
       const res = await app.request('/api/canvas/layout/auto', {
@@ -177,6 +181,7 @@ describe('Layout routes', () => {
       expect(res.status).toBe(200);
       expect(json).toEqual({ data: { success: true } });
       expect(mockCallStore).toHaveBeenCalledWith('autoLayout', ['hierarchical', 50]);
+      expect(mockCallStore).toHaveBeenCalledWith('recalculateEdgeHandles', []);
     });
 
     it('rejects invalid strategy', async () => {

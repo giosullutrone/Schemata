@@ -47,6 +47,7 @@ layout.post('/auto', async (c) => {
     return c.json({ error: `strategy must be one of: ${[...VALID_STRATEGIES].join(', ')}` }, 400);
   }
   await callStore('autoLayout', [strategy, gap]);
+  await callStore('recalculateEdgeHandles', []);
   return c.json({ data: { success: true } });
 });
 
