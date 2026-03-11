@@ -807,23 +807,39 @@ function handleAction(action: string, args: unknown[]): unknown {
       }
       const el = document.querySelector('.react-flow') as HTMLElement;
       if (!el) throw new Error('Canvas element not found — is the browser tab open?');
-      if (format === 'png') {
-        return import('html-to-image').then(({ toBlob }) =>
-          toBlob(el).then(blob => {
-            if (!blob) throw new Error('Failed to generate PNG');
-            return new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          })
-        );
+
+      // Save current viewport, fit to content, capture, then restore
+      const savedViewport = file?.viewport ?? { x: 0, y: 0, zoom: 1 };
+      // Fit viewport to show all content
+      if (file && file.nodes.length > 0) {
+        handleAction('fitViewport', [20]);
       }
-      if (format === 'svg') {
-        return import('html-to-image').then(({ toSvg }) => toSvg(el));
-      }
-      throw new Error(`Unsupported export format: ${format}`);
+      // Wait for React to re-render with the new viewport
+      await new Promise(r => setTimeout(r, 300));
+
+      const capture = async () => {
+        if (format === 'png') {
+          const { toBlob } = await import('html-to-image');
+          const blob = await toBlob(el);
+          if (!blob) throw new Error('Failed to generate PNG');
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+        if (format === 'svg') {
+          const { toSvg } = await import('html-to-image');
+          return toSvg(el);
+        }
+        throw new Error(`Unsupported export format: ${format}`);
+      };
+
+      const result = await capture();
+      // Restore original viewport
+      store.saveViewport(savedViewport);
+      return result;
     }
 
     default:
